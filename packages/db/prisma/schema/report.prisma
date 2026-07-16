@@ -1,0 +1,140 @@
+enum ReportStatus {
+  SUBMITTED
+  AI_GATHERING
+  READY_FOR_REVIEW
+  DISPATCH_PENDING
+  DISPATCHED
+  HELP_EN_ROUTE
+  HELP_ARRIVED
+  RESOLVED
+  CLOSED
+  CANCELLED
+}
+
+enum ReportCategory {
+  UNCATEGORIZED
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentType {
+  CRIME
+  FIRE
+  MEDICAL
+  TRAFFIC_ACCIDENT
+  NATURAL_DISASTER
+  DOMESTIC_VIOLENCE
+  MISSING_PERSON
+  OTHER
+}
+
+enum HandlingMode {
+  AI
+  HUMAN
+}
+
+enum CommunicationChannel {
+  VOICE
+  CHAT
+}
+
+enum ChannelSwitchReason {
+  USER_CHOICE
+  VOICE_ERROR
+  CALL_ENDED
+  OPERATOR_REQUEST
+}
+
+model EmergencyReport {
+  id String @id @default(cuid())
+
+  reporterId String
+  reporter   User   @relation("ReportsAsReporter", fields: [reporterId], references: [id])
+
+  accessToken String @unique @default(cuid())
+
+  status       ReportStatus   @default(SUBMITTED)
+  category     ReportCategory @default(UNCATEGORIZED)
+  incidentType IncidentType?
+
+  title          String?
+  summary        String?
+  recommendation String?
+  extractedData  Json?
+
+  contactPhoneSnapshot String?
+  latitude             Float?
+  longitude            Float?
+  address              String?
+
+  activeChannel CommunicationChannel?
+  handlingMode  HandlingMode          @default(AI)
+
+  assignedOperatorId String?
+  assignedOperator   User?   @relation("ReportsAsOperator", fields: [assignedOperatorId], references: [id])
+
+  isDemo Boolean @default(false)
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  resolvedAt DateTime?
+  closedAt   DateTime?
+
+  messages        Message[]
+  callSessions    CallSession[]
+  statusHistory   ReportStatusEvent[]
+  channelSwitches ChannelSwitchEvent[]
+  aiAnalyses      AIAnalysisSnapshot[]
+  handoffEvents   HandoffEvent[]
+  dispatches      DispatchRequest[]
+
+  @@index([status, category])
+  @@index([reporterId])
+  @@index([assignedOperatorId])
+  @@map("emergency_report")
+}
+
+model ReportStatusEvent {
+  id         String            @id @default(cuid())
+  reportId   String
+  report     EmergencyReport   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  fromStatus ReportStatus?
+  toStatus   ReportStatus
+  note       String?
+  actorType  MessageSenderType
+  actorId    String?
+  createdAt  DateTime          @default(now())
+
+  @@index([reportId])
+  @@map("report_status_event")
+}
+
+model ChannelSwitchEvent {
+  id          String                @id @default(cuid())
+  reportId    String
+  report      EmergencyReport       @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  fromChannel CommunicationChannel?
+  toChannel   CommunicationChannel
+  reason      ChannelSwitchReason
+  switchedAt  DateTime              @default(now())
+
+  @@index([reportId])
+  @@map("channel_switch_event")
+}
+
+model HandoffEvent {
+  id         String          @id @default(cuid())
+  reportId   String
+  report     EmergencyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  fromMode   HandlingMode
+  toMode     HandlingMode
+  operatorId String?
+  operator   User?           @relation("HandoffOperator", fields: [operatorId], references: [id])
+  reason     String?
+  occurredAt DateTime        @default(now())
+
+  @@index([reportId])
+  @@map("handoff_event")
+}

@@ -1,0 +1,107 @@
+enum UserRole {
+  REPORTER
+  OPERATOR
+}
+
+enum BloodType {
+  A_POSITIVE
+  A_NEGATIVE
+  B_POSITIVE
+  B_NEGATIVE
+  AB_POSITIVE
+  AB_NEGATIVE
+  O_POSITIVE
+  O_NEGATIVE
+  UNKNOWN
+}
+
+model User {
+  id            String    @id
+  name          String
+  email         String
+  emailVerified Boolean   @default(false)
+  image         String?
+  role          UserRole  @default(REPORTER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+
+  reporterProfile   ReporterProfile?
+  reportsAsReporter EmergencyReport[] @relation("ReportsAsReporter")
+  reportsAsOperator EmergencyReport[] @relation("ReportsAsOperator")
+  handoffEvents     HandoffEvent[]    @relation("HandoffOperator")
+  sentMessages      Message[]         @relation("MessageSenderUser")
+  aiFeedback        AIFeedback[]      @relation("AIFeedbackOperator")
+  dispatchRequests  DispatchRequest[] @relation("DispatchedByOperator")
+
+  @@unique([email])
+  @@map("user")
+}
+
+model ReporterProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  phoneNumber           String?
+  bloodType             BloodType?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  homeAddress           String?
+  homeLatitude          Float?
+  homeLongitude         Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("reporter_profile")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}

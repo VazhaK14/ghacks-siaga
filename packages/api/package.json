@@ -1,0 +1,27 @@
+{
+  "name": "@siaga-app/api",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {},
+  "dependencies": {
+    "@siaga-app/auth": "workspace:*",
+    "@siaga-app/db": "workspace:*",
+    "@siaga-app/env": "workspace:*",
+    "@trpc/client": "catalog:",
+    "@trpc/server": "catalog:",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@siaga-app/config": "workspace:*",
+    "hono": "catalog:",
+    "typescript": "^6"
+  }
+}

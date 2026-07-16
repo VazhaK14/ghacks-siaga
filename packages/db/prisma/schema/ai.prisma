@@ -1,0 +1,43 @@
+model AIAnalysisSnapshot {
+  id       String          @id @default(cuid())
+  reportId String
+  report   EmergencyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  triggeredByMessageId String?
+  triggeredByMessage   Message? @relation(fields: [triggeredByMessageId], references: [id])
+
+  summary         String
+  recommendation  String?
+  category        ReportCategory
+  incidentType    IncidentType?
+  extractedData   Json?
+  confidenceScore Float?
+  modelVersion    String?
+
+  createdAt DateTime @default(now())
+
+  feedback AIFeedback[]
+
+  @@index([reportId])
+  @@map("ai_analysis_snapshot")
+}
+
+model AIFeedback {
+  id                 String             @id @default(cuid())
+  analysisSnapshotId String
+  analysisSnapshot   AIAnalysisSnapshot @relation(fields: [analysisSnapshotId], references: [id], onDelete: Cascade)
+
+  reviewedByOperatorId String
+  reviewedByOperator   User   @relation("AIFeedbackOperator", fields: [reviewedByOperatorId], references: [id])
+
+  wasAccurate           Boolean
+  correctedCategory     ReportCategory?
+  correctedIncidentType IncidentType?
+  correctedSummary      String?
+  notes                 String?
+
+  createdAt DateTime @default(now())
+
+  @@index([analysisSnapshotId])
+  @@map("ai_feedback")
+}

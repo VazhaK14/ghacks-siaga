@@ -1,0 +1,55 @@
+enum DispatchAgencyType {
+  POLICE
+  FIRE_DEPARTMENT
+  AMBULANCE
+  SAR
+  OTHER
+}
+
+enum DispatchStatus {
+  REQUESTED
+  ACKNOWLEDGED
+  EN_ROUTE
+  ARRIVED
+  COMPLETED
+  CANCELLED
+}
+
+model DispatchAgency {
+  id           String             @id @default(cuid())
+  name         String
+  type         DispatchAgencyType
+  contactPhone String?
+  jurisdiction String?
+  isActive     Boolean            @default(true)
+
+  dispatches DispatchRequest[]
+
+  @@map("dispatch_agency")
+}
+
+model DispatchRequest {
+  id       String          @id @default(cuid())
+  reportId String
+  report   EmergencyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  agencyId   String?
+  agency     DispatchAgency?    @relation(fields: [agencyId], references: [id])
+  agencyType DispatchAgencyType
+
+  dispatchedByOperatorId String
+  dispatchedByOperator   User   @relation("DispatchedByOperator", fields: [dispatchedByOperatorId], references: [id])
+
+  status                   DispatchStatus @default(REQUESTED)
+  structuredReportSnapshot Json
+  notes                    String?
+
+  requestedAt    DateTime  @default(now())
+  acknowledgedAt DateTime?
+  arrivedAt      DateTime?
+  completedAt    DateTime?
+
+  @@index([reportId])
+  @@index([agencyId])
+  @@map("dispatch_request")
+}

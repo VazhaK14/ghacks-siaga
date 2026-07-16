@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "scheme": "siaga-app",
+    "userInterfaceStyle": "automatic",
+    "orientation": "default",
+    "web": {
+      "bundler": "metro"
+    },
+    "name": "siaga-app",
+    "slug": "siaga-app",
+    "plugins": ["expo-font", "expo-splash-screen"],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

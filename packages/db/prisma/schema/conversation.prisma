@@ -1,0 +1,53 @@
+enum MessageSenderType {
+  REPORTER
+  AI_AGENT
+  OPERATOR
+  SYSTEM
+}
+
+enum CallEndReason {
+  COMPLETED
+  USER_HANGUP
+  ERROR
+  TIMEOUT
+}
+
+model Message {
+  id       String          @id @default(cuid())
+  reportId String
+  report   EmergencyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  senderType   MessageSenderType
+  senderUserId String?
+  senderUser   User?             @relation("MessageSenderUser", fields: [senderUserId], references: [id])
+
+  channel              CommunicationChannel
+  content              String
+  audioUrl             String?
+  transcriptConfidence Float?
+
+  sequence  Int
+  createdAt DateTime @default(now())
+
+  triggeredAnalyses AIAnalysisSnapshot[]
+
+  @@index([reportId, sequence])
+  @@map("message")
+}
+
+model CallSession {
+  id       String          @id @default(cuid())
+  reportId String
+  report   EmergencyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  provider        String
+  externalCallId  String?
+  startedAt       DateTime       @default(now())
+  endedAt         DateTime?
+  endReason       CallEndReason?
+  durationSeconds Int?
+  recordingUrl    String?
+
+  @@index([reportId])
+  @@map("call_session")
+}

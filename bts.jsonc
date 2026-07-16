@@ -1,0 +1,39 @@
+// Better-T-Stack
+//
+// Website: https://www.better-t-stack.dev/
+// Stack Builder: https://www.better-t-stack.dev/new
+// Analytics: https://www.better-t-stack.dev/analytics
+// Showcase: https://www.better-t-stack.dev/showcase
+// Sponsor: https://github.com/sponsors/AmanVarshney01
+//
+// Add new addons with: bun create better-t-stack add
+// This file is safe to delete
+
+{
+  "$schema": "https://r2.better-t-stack.dev/schema.json",
+  "version": "3.36.3",
+  "createdAt": "2026-07-15T04:21:04.252Z",
+  "reproducibleCommand": "bun create better-t-stack@latest siaga-app --frontend react-router native-uniwind --backend hono --runtime bun --database postgres --orm prisma --api trpc --auth better-auth --payments none --addons evlog husky mcp skills starlight turborepo ultracite --examples none --db-setup prisma-postgres --web-deploy vercel --server-deploy vercel --git --package-manager bun --install",
+  "database": "postgres",
+  "orm": "prisma",
+  "backend": "hono",
+  "runtime": "bun",
+  "frontend": ["react-router", "native-uniwind"],
+  "addons": [
+    "evlog",
+    "husky",
+    "mcp",
+    "skills",
+    "starlight",
+    "turborepo",
+    "ultracite"
+  ],
+  "examples": [],
+  "auth": "better-auth",
+  "payments": "none",
+  "packageManager": "bun",
+  "dbSetup": "prisma-postgres",
+  "api": "trpc",
+  "webDeploy": "vercel",
+  "serverDeploy": "vercel"
+}

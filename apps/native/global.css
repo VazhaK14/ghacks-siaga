@@ -1,0 +1,162 @@
+@import "tailwindcss";
+@import "uniwind";
+@import "heroui-native/styles";
+
+@source "./node_modules/heroui-native/lib";
+
+@theme {
+  /*
+   * HeroUI Native components read --font-normal/--font-medium/--font-semibold
+   * directly (see https://heroui.com/docs/native/getting-started/theming#custom-fonts)
+   * so overriding these makes every HeroUI Native component (Text, Card,
+   * Button, TextField, ...) render in Plus Jakarta Sans automatically.
+   * --font-extrabold follows the same convention for our h1-h6 scale.
+   */
+  --font-sans: "PlusJakartaSans_400Regular";
+  --font-normal: "PlusJakartaSans_400Regular";
+  --font-medium: "PlusJakartaSans_500Medium";
+  --font-semibold: "PlusJakartaSans_600SemiBold";
+  --font-extrabold: "PlusJakartaSans_800ExtraBold";
+
+  /* Text */
+  --text-h1: 2rem;
+  --text-h1--font-weight: 800;
+  --text-h1--line-height: normal;
+  --text-h1--letter-spacing: 0.02em;
+
+  --text-h2: 1.75rem;
+  --text-h2--font-weight: 800;
+  --text-h2--line-height: normal;
+  --text-h2--letter-spacing: 0.04em;
+
+  --text-h3: 1.5rem;
+  --text-h3--font-weight: 800;
+  --text-h3--line-height: normal;
+  --text-h3--letter-spacing: 0.01em;
+
+  --text-h4: 1.25rem;
+  --text-h4--font-weight: 800;
+  --text-h4--line-height: normal;
+  --text-h4--letter-spacing: 0.01em;
+
+  --text-h5: 1rem;
+  --text-h5--font-weight: 800;
+  --text-h5--line-height: normal;
+  --text-h5--letter-spacing: 0.01em;
+
+  --text-h6: 0.75rem;
+  --text-h6--font-weight: 800;
+  --text-h6--line-height: normal;
+  --text-h6--letter-spacing: 0.01em;
+
+  --text-m1: 1.5rem;
+  --text-m1--font-weight: 600;
+  --text-m1--line-height: normal;
+  --text-m1--letter-spacing: 0.01em;
+
+  --text-m2: 1.25rem;
+  --text-m2--font-weight: 600;
+  --text-m2--line-height: normal;
+  --text-m2--letter-spacing: 0.01em;
+
+  --text-m3: 1rem;
+  --text-m3--font-weight: 600;
+  --text-m3--line-height: normal;
+  --text-m3--letter-spacing: 0.01em;
+
+  --text-m4: 0.75rem;
+  --text-m4--font-weight: 600;
+  --text-m4--line-height: normal;
+  --text-m4--letter-spacing: 0.01em;
+
+  --text-p1: 1.5rem;
+  --text-p1--font-weight: 400;
+  --text-p1--line-height: normal;
+  --text-p1--letter-spacing: 0.01em;
+
+  --text-p2: 1.25rem;
+  --text-p2--font-weight: 400;
+  --text-p2--line-height: normal;
+  --text-p2--letter-spacing: 0.01em;
+
+  --text-p3: 1.125rem;
+  --text-p3--font-weight: 400;
+  --text-p3--line-height: normal;
+  --text-p3--letter-spacing: 0.01em;
+
+  --text-p4: 1rem;
+  --text-p4--font-weight: 400;
+  --text-p4--line-height: normal;
+  --text-p4--letter-spacing: 0.01em;
+
+  --text-p5: 0.875rem;
+  --text-p5--font-weight: 400;
+  --text-p5--line-height: normal;
+  --text-p5--letter-spacing: 0.01em;
+
+  --text-p6: 0.75rem;
+  --text-p6--font-weight: 400;
+  --text-p6--line-height: normal;
+  --text-p6--letter-spacing: 0.01em;
+
+  /* Palette */
+  --color-primary-100: #ff6969;
+  --color-primary-200: #ff1e1e;
+  --color-primary-300: #d20000;
+  --color-primary-400: #870000;
+  --color-primary-500: #500000;
+  --color-primary-10: color-mix(in srgb, #870000 10%, transparent);
+
+  --color-neutral-100: #ffffff;
+  --color-neutral-200: #e8e8e8;
+  --color-neutral-300: #d2d2d2;
+  --color-neutral-400: #bbbbbb;
+  --color-neutral-500: #a4a4a4;
+  --color-neutral-600: #8e8e8e;
+  --color-neutral-700: #777777;
+  --color-neutral-800: #606060;
+  --color-neutral-900: #4a4a4a;
+  --color-neutral-1000: #333333;
+  --color-neutral-10: color-mix(in srgb, #333333 10%, transparent);
+
+  --color-red-100: #fb3748;
+  --color-red-200: #d00416;
+  --color-red-10: color-mix(in srgb, #fb3748 10%, transparent);
+
+  --color-yellow-100: #ffdb43;
+  --color-yellow-200: #dfb400;
+  --color-yellow-10: color-mix(in srgb, #ffdb43 10%, transparent);
+
+  --color-green-100: #84ebb4;
+  --color-green-200: #1fc16b;
+  --color-green-10: color-mix(in srgb, #1fc16b 10%, transparent);
+}
+
+/*
+ * HeroUI Native semantic color overrides — see
+ * https://heroui.com/docs/native/getting-started/theming#override-colors
+ * accent = primary/brand action color (native's equivalent of web's --primary).
+ */
+@layer theme {
+  @variant light {
+    --accent: #870000;
+    --accent-foreground: #ffffff;
+    --danger: #d00416;
+    --danger-foreground: #ffffff;
+    --success: #1fc16b;
+    --success-foreground: #333333;
+    --warning: #ffdb43;
+    --warning-foreground: #333333;
+  }
+
+  @variant dark {
+    --accent: #870000;
+    --accent-foreground: #ffffff;
+    --danger: #d00416;
+    --danger-foreground: #ffffff;
+    --success: #1fc16b;
+    --success-foreground: #333333;
+    --warning: #ffdb43;
+    --warning-foreground: #333333;
+  }
+}
