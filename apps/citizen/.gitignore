@@ -1,0 +1,26 @@
+# Dependencies
+/node_modules
+
+# Build outputs
+/build/
+/dist/
+.react-router/
+
+# Deployment
+.vercel
+
+# Environment & local files
+.env*
+!.env.example
+.DS_Store
+*.pem
+*.local
+
+# Logs
+*.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# PWA / SW dev output
+dev-dist

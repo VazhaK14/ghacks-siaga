@@ -150,11 +150,14 @@ export const reportRouter = router({
           input.reportId,
           ctx.session.user.id
         );
-        await publishReportLiveEvent({
-          reportId: detail.id,
-          type: "report.updated",
-          updatedAt: detail.updatedAt,
-        });
+        await publishReportLiveEvent(
+          {
+            reportId: detail.id,
+            type: "report.updated",
+            updatedAt: detail.updatedAt,
+          },
+          { notifyReporter: true }
+        );
         return detail;
       } catch (error) {
         return toUpdateTrpcError(error);
@@ -299,11 +302,14 @@ export const reportRouter = router({
           operatorId: ctx.session.user.id,
           reportId: input.reportId,
         });
-        await publishReportLiveEvent({
-          reportId: input.reportId,
-          type: "report.updated",
-          updatedAt: detail.updatedAt,
-        });
+        await publishReportLiveEvent(
+          {
+            reportId: input.reportId,
+            type: "report.updated",
+            updatedAt: detail.updatedAt,
+          },
+          { notifyReporter: true }
+        );
         return detail;
       } catch (error) {
         return toUpdateTrpcError(error);

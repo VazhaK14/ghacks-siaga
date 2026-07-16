@@ -2,6 +2,7 @@ import { protectedProcedure, publicProcedure, router } from "../index";
 import { dispatchRouter } from "../modules/dispatch/presentation/router";
 import { overviewRouter } from "../modules/overview/presentation/router";
 import { profileRouter } from "../modules/profile/presentation/router";
+import { pushRouter } from "../modules/push/presentation/router";
 import { reportRouter } from "../modules/report/presentation/router";
 
 export const appRouter = router({
@@ -13,6 +14,7 @@ export const appRouter = router({
     user: ctx.session.user,
   })),
   profile: profileRouter,
+  push: pushRouter,
   report: reportRouter,
 });
 export type AppRouter = typeof appRouter;

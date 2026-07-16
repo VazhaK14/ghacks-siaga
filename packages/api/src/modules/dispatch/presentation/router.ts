@@ -41,12 +41,15 @@ const publishDispatchEvent = async (
     | "dispatch.arrived"
     | "dispatch.completed"
 ): Promise<void> => {
-  await publishReportLiveEvent({
-    dispatchId: dispatch.id,
-    reportId: dispatch.reportId,
-    type,
-    updatedAt: new Date().toISOString(),
-  });
+  await publishReportLiveEvent(
+    {
+      dispatchId: dispatch.id,
+      reportId: dispatch.reportId,
+      type,
+      updatedAt: new Date().toISOString(),
+    },
+    { notifyReporter: true }
+  );
 };
 
 const scheduler = new DispatchSimulationScheduler(
@@ -76,18 +79,24 @@ export const dispatchRouter = router({
         });
         if (result.cancelledDispatchId) {
           scheduler.cancel(result.cancelledDispatchId);
-          await publishReportLiveEvent({
-            dispatchId: result.cancelledDispatchId,
-            reportId: result.reportId,
-            type: "dispatch.cancelled",
-            updatedAt: result.closedAt,
-          });
+          await publishReportLiveEvent(
+            {
+              dispatchId: result.cancelledDispatchId,
+              reportId: result.reportId,
+              type: "dispatch.cancelled",
+              updatedAt: result.closedAt,
+            },
+            { notifyReporter: true }
+          );
         }
-        await publishReportLiveEvent({
-          reportId: result.reportId,
-          type: "report.removed",
-          updatedAt: result.closedAt,
-        });
+        await publishReportLiveEvent(
+          {
+            reportId: result.reportId,
+            type: "report.removed",
+            updatedAt: result.closedAt,
+          },
+          { notifyReporter: true }
+        );
         return result;
       } catch (error) {
         return toTrpcError(error);
@@ -146,11 +155,14 @@ export const dispatchRouter = router({
           operatorId: ctx.session.user.id,
         });
         await publishDispatchEvent(dispatch, "dispatch.completed");
-        await publishReportLiveEvent({
-          reportId: dispatch.reportId,
-          type: "report.removed",
-          updatedAt: new Date().toISOString(),
-        });
+        await publishReportLiveEvent(
+          {
+            reportId: dispatch.reportId,
+            type: "report.removed",
+            updatedAt: new Date().toISOString(),
+          },
+          { notifyReporter: true }
+        );
         return dispatch;
       } catch (error) {
         return toTrpcError(error);
