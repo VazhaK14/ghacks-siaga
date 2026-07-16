@@ -3,7 +3,7 @@
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown --config-loader tsx",
     "check-types": "tsc -b",
     "compile": "bun build --compile --minify --sourcemap --bytecode ./src/index.ts --outfile server",
     "dev": "bun run --hot src/index.ts",
@@ -26,6 +26,7 @@
     "@siaga-app/config": "workspace:*",
     "@types/bun": "catalog:",
     "tsdown": "^0.22.3",
+    "tsx": "^4.22.5",
     "typescript": "^6"
   }
 }
