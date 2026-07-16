@@ -109,7 +109,6 @@
         "@siaga-app/config": "workspace:*",
         "@types/bun": "catalog:",
         "tsdown": "^0.22.3",
-        "tsx": "^4.22.5",
         "typescript": "^6",
       },
     },
