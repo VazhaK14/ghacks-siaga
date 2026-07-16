@@ -7,7 +7,8 @@ export type ReportLiveEventType =
   | "dispatch.created"
   | "dispatch.updated"
   | "dispatch.arrived"
-  | "dispatch.completed";
+  | "dispatch.completed"
+  | "dispatch.cancelled";
 
 export interface ReportLiveEvent {
   dispatchId?: string;
@@ -36,6 +37,7 @@ const REPORT_EVENT_TYPES = new Set<ReportLiveEventType>([
   "dispatch.updated",
   "dispatch.arrived",
   "dispatch.completed",
+  "dispatch.cancelled",
 ]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

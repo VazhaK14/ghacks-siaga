@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { operatorProcedure, router } from "../../../index";
 import { publishReportLiveEvent } from "../../report/presentation/live-events";
 import { AdvanceDispatchSimulation } from "../application/advance-dispatch-simulation";
+import { CloseReport } from "../application/close-report";
 import { CreateDispatch } from "../application/create-dispatch";
 import { GetReportDispatch } from "../application/get-report-dispatch";
 import { ListAgencyBoard } from "../application/list-agency-board";
@@ -15,6 +16,8 @@ import { DispatchSimulationScheduler } from "../infrastructure/dispatch-simulati
 import { PrismaDispatchRepository } from "../infrastructure/prisma-dispatch-repository";
 import {
   agencyBoardSchema,
+  closeReportInputSchema,
+  closeReportResultSchema,
   createDispatchInputSchema,
   dispatchIdInputSchema,
   dispatchTrackingSchema,
@@ -28,6 +31,7 @@ const createDispatch = new CreateDispatch(repository);
 const advanceDispatch = new AdvanceDispatchSimulation(repository);
 const resolveDispatch = new ResolveDispatch(repository);
 const listAgencyBoard = new ListAgencyBoard(repository);
+const closeReport = new CloseReport(repository);
 
 const publishDispatchEvent = async (
   dispatch: DispatchTracking,
@@ -61,6 +65,34 @@ const toTrpcError = (error: unknown): never => {
 };
 
 export const dispatchRouter = router({
+  closeReport: operatorProcedure
+    .input(closeReportInputSchema)
+    .output(closeReportResultSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const result = await closeReport.execute({
+          ...input,
+          operatorId: ctx.session.user.id,
+        });
+        if (result.cancelledDispatchId) {
+          scheduler.cancel(result.cancelledDispatchId);
+          await publishReportLiveEvent({
+            dispatchId: result.cancelledDispatchId,
+            reportId: result.reportId,
+            type: "dispatch.cancelled",
+            updatedAt: result.closedAt,
+          });
+        }
+        await publishReportLiveEvent({
+          reportId: result.reportId,
+          type: "report.removed",
+          updatedAt: result.closedAt,
+        });
+        return result;
+      } catch (error) {
+        return toTrpcError(error);
+      }
+    }),
   create: operatorProcedure
     .input(createDispatchInputSchema)
     .output(dispatchTrackingSchema)

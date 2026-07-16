@@ -4,6 +4,7 @@ import type {
   ArchivedReportPage,
   ReportCategory,
   ReportDetail,
+  ReportEditableDetail,
   ReportMapPoint,
   TerminalReportStatus,
 } from "./entities";
@@ -21,6 +22,13 @@ export interface ListArchivedReportsInput {
   status?: TerminalReportStatus;
 }
 
+export interface UpdateReportDetailInput {
+  detail: ReportEditableDetail;
+  expectedUpdatedAt: Date;
+  operatorId: string;
+  reportId: string;
+}
+
 export interface ReportRepository {
   findActiveDetail: (reportId: string) => Promise<ReportDetail | null>;
   findArchivedDetail: (
@@ -31,4 +39,5 @@ export interface ReportRepository {
   listArchived: (
     input: ListArchivedReportsInput
   ) => Promise<ArchivedReportPage>;
+  updateDetail: (input: UpdateReportDetailInput) => Promise<ReportDetail>;
 }

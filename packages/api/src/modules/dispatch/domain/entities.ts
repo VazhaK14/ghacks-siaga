@@ -144,6 +144,14 @@ export interface AgencyBoardRecord {
   agency: DispatchAgency;
 }
 
+export type ReportClosureReason = "PRANK_CALL" | "INCOMPLETE_REPORT" | "OTHER";
+
+export interface CloseReportResult {
+  cancelledDispatchId: string | null;
+  closedAt: string;
+  reportId: string;
+}
+
 export type DispatchApplicationErrorCode =
   | "NOT_FOUND"
   | "CONFLICT"

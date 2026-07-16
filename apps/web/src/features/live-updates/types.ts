@@ -6,6 +6,7 @@ export const OPERATIONAL_EVENT_NAMES = [
   "dispatch.updated",
   "dispatch.arrived",
   "dispatch.completed",
+  "dispatch.cancelled",
 ] as const;
 
 export type OperationalEventName = (typeof OPERATIONAL_EVENT_NAMES)[number];

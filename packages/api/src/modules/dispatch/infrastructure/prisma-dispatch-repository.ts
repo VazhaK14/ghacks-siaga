@@ -10,6 +10,7 @@ import {
   ReportStatus,
 } from "@siaga-app/db/enums";
 import type {
+  CloseReportInput,
   CreateDispatchInput,
   DispatchRepository,
   ResolveDispatchInput,
@@ -17,6 +18,7 @@ import type {
 } from "../domain/dispatch-repository";
 import type {
   AgencyBoardRecord,
+  CloseReportResult,
   DispatchAgency,
   DispatchRecord,
   DispatchReportContext,
@@ -37,6 +39,12 @@ const TERMINAL_REPORT_STATUSES: PrismaReportStatus[] = [
   ReportStatus.CLOSED,
   ReportStatus.CANCELLED,
 ];
+
+const CLOSURE_REASON_LABELS = {
+  INCOMPLETE_REPORT: "Laporan tidak lengkap",
+  OTHER: "Alasan lain",
+  PRANK_CALL: "Prank call",
+} as const;
 
 interface AgencyRow {
   address: string | null;
@@ -95,7 +103,6 @@ const toDispatchRecord = (dispatch: DispatchRow): DispatchRecord => {
   if (!agency || latitude === null || longitude === null) {
     throw new Error("Dispatch tracking requires agency and report coordinates");
   }
-
   return {
     acknowledgedAt: dispatch.acknowledgedAt,
     agency,
@@ -135,6 +142,95 @@ const dispatchInclude = {
 } as const;
 
 export class PrismaDispatchRepository implements DispatchRepository {
+  async closeReport(input: CloseReportInput): Promise<CloseReportResult> {
+    const closedAt = new Date();
+    const cancelledDispatchId = await prisma.$transaction(
+      async (transaction) => {
+        const report = await transaction.emergencyReport.findUnique({
+          include: {
+            dispatches: {
+              orderBy: { requestedAt: "desc" },
+              take: 1,
+              where: { status: { in: ACTIVE_DISPATCH_STATUSES } },
+            },
+          },
+          where: { id: input.reportId },
+        });
+        if (!report) {
+          throw new DispatchApplicationError(
+            "NOT_FOUND",
+            "Laporan tidak ditemukan"
+          );
+        }
+        if (TERMINAL_REPORT_STATUSES.includes(report.status)) {
+          throw new DispatchApplicationError(
+            "BAD_REQUEST",
+            "Laporan sudah ditutup atau diselesaikan"
+          );
+        }
+
+        const [activeDispatch] = report.dispatches;
+        const canCancelDispatch =
+          activeDispatch?.status === DispatchStatus.REQUESTED ||
+          activeDispatch?.status === DispatchStatus.ACKNOWLEDGED;
+        if (activeDispatch && !canCancelDispatch) {
+          throw new DispatchApplicationError(
+            "BAD_REQUEST",
+            "Laporan tidak dapat ditutup setelah unit mulai menuju lokasi"
+          );
+        }
+
+        if (activeDispatch) {
+          await transaction.dispatchRequest.update({
+            data: {
+              cancelledAt: closedAt,
+              status: DispatchStatus.CANCELLED,
+            },
+            where: { id: activeDispatch.id },
+          });
+          if (activeDispatch.agencyId) {
+            await transaction.dispatchAgency.update({
+              data: { availability: DispatchAgencyAvailability.AVAILABLE },
+              where: { id: activeDispatch.agencyId },
+            });
+          }
+        }
+
+        const trimmedNote = input.note?.trim();
+        const reasonLabel = CLOSURE_REASON_LABELS[input.reason];
+        await transaction.emergencyReport.update({
+          data: {
+            closedAt,
+            closedByOperatorId: input.operatorId,
+            closureNote: trimmedNote || null,
+            closureReason: input.reason,
+            status: ReportStatus.CLOSED,
+            statusHistory: {
+              create: {
+                actorId: input.operatorId,
+                actorType: MessageSenderType.OPERATOR,
+                fromStatus: report.status,
+                note: trimmedNote
+                  ? `${reasonLabel}: ${trimmedNote}`
+                  : reasonLabel,
+                toStatus: ReportStatus.CLOSED,
+              },
+            },
+          },
+          where: { id: report.id },
+        });
+
+        return activeDispatch?.id ?? null;
+      }
+    );
+
+    return {
+      cancelledDispatchId,
+      closedAt: closedAt.toISOString(),
+      reportId: input.reportId,
+    };
+  }
+
   async findReportContext(
     reportId: string
   ): Promise<DispatchReportContext | null> {
@@ -191,26 +287,27 @@ export class PrismaDispatchRepository implements DispatchRepository {
     const requestedAt = new Date();
 
     const dispatch = await prisma.$transaction(async (transaction) => {
-      const [report, agency, existingDispatch] = await Promise.all([
-        transaction.emergencyReport.findUnique({
-          include: {
-            aiAnalyses: {
-              orderBy: { createdAt: "desc" },
-              take: 1,
-            },
+      const report = await transaction.emergencyReport.findUnique({
+        include: {
+          aiAnalyses: {
+            orderBy: { createdAt: "desc" },
+            take: 1,
           },
-          where: { id: input.reportId },
-        }),
-        transaction.dispatchAgency.findUnique({
-          where: { id: input.agencyId },
-        }),
-        transaction.dispatchRequest.findFirst({
-          where: {
-            reportId: input.reportId,
-            status: { in: ACTIVE_DISPATCH_STATUSES },
+          reporter: {
+            include: { reporterProfile: true },
           },
-        }),
-      ]);
+        },
+        where: { id: input.reportId },
+      });
+      const agency = await transaction.dispatchAgency.findUnique({
+        where: { id: input.agencyId },
+      });
+      const existingDispatch = await transaction.dispatchRequest.findFirst({
+        where: {
+          reportId: input.reportId,
+          status: { in: ACTIVE_DISPATCH_STATUSES },
+        },
+      });
 
       if (!(report && agency)) {
         throw new DispatchApplicationError(
@@ -238,15 +335,33 @@ export class PrismaDispatchRepository implements DispatchRepository {
       }
 
       const structuredReportSnapshot = {
-        address: report.address,
-        category: report.category,
-        incidentType: report.incidentType,
         latestAnalysis: report.aiAnalyses[0] ?? null,
-        latitude: report.latitude,
-        longitude: report.longitude,
-        recommendation: report.recommendation,
-        summary: report.summary,
-        title: report.title,
+        location: {
+          address: report.address,
+          latitude: report.latitude,
+          longitude: report.longitude,
+        },
+        report: {
+          category: report.category,
+          extractedData: report.extractedData,
+          incidentType: report.incidentType,
+          recommendation: report.recommendation,
+          summary: report.summary,
+          title: report.title,
+        },
+        reporter: {
+          email: report.reporter.email,
+          emergencyContactName:
+            report.reporter.reporterProfile?.emergencyContactName ?? null,
+          emergencyContactPhone:
+            report.reporter.reporterProfile?.emergencyContactPhone ?? null,
+          id: report.reporter.id,
+          name: report.reporter.name,
+          phoneNumber:
+            report.contactPhoneSnapshot ??
+            report.reporter.reporterProfile?.phoneNumber ??
+            null,
+        },
       };
 
       const createdDispatch = await transaction.dispatchRequest.create({

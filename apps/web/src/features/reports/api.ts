@@ -1,5 +1,10 @@
 import { env } from "@siaga-app/env/web";
-import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import { getServerUrl } from "@/lib/get-server-url";
@@ -7,7 +12,11 @@ import { trpc } from "@/utils/trpc";
 
 import type { ArchivedReportListInput } from "./types";
 
-const ARCHIVE_EVENT_NAMES = ["report.removed", "dispatch.completed"] as const;
+const ARCHIVE_EVENT_NAMES = [
+  "report.removed",
+  "dispatch.completed",
+  "dispatch.cancelled",
+] as const;
 
 export function useArchivedReportsQuery(input: ArchivedReportListInput) {
   return useQuery(trpc.report.listArchived.queryOptions(input));
@@ -47,4 +56,29 @@ export function useArchivedReportLiveUpdates(): void {
       eventSource.close();
     };
   }, [queryClient]);
+}
+
+const useInvalidateReportQueries = () => {
+  const queryClient = useQueryClient();
+
+  return async (): Promise<void> => {
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: trpc.report.pathKey(),
+      }),
+      queryClient.invalidateQueries({
+        queryKey: trpc.dispatch.pathKey(),
+      }),
+    ]);
+  };
+};
+
+export function useUpdateReportDetailMutation() {
+  const invalidateQueries = useInvalidateReportQueries();
+
+  return useMutation(
+    trpc.report.updateDetail.mutationOptions({
+      onSuccess: invalidateQueries,
+    })
+  );
 }

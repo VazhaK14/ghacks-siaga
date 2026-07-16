@@ -1,5 +1,6 @@
 import prisma from "@siaga-app/db";
 import {
+  type DispatchStatus as PrismaDispatchStatus,
   type ReportStatus as PrismaReportStatus,
   ReportStatus,
 } from "@siaga-app/db/enums";
@@ -14,6 +15,7 @@ import {
   type ReportDetail,
   type ReportMapPoint,
   type ReportStatusHistoryItem,
+  ReportUpdateApplicationError,
   TERMINAL_REPORT_STATUSES,
   type TerminalReportStatus,
 } from "../domain/entities";
@@ -21,6 +23,7 @@ import type {
   ListActiveReportsInput,
   ListArchivedReportsInput,
   ReportRepository,
+  UpdateReportDetailInput,
 } from "../domain/report-repository";
 
 const ACTIVE_STATUSES = ACTIVE_REPORT_STATUSES.map(
@@ -30,6 +33,27 @@ const ACTIVE_STATUSES = ACTIVE_REPORT_STATUSES.map(
 const TERMINAL_STATUSES = TERMINAL_REPORT_STATUSES.map(
   (status) => ReportStatus[status]
 ) satisfies PrismaReportStatus[];
+
+const EARLY_DISPATCH_STATUSES = [
+  "REQUESTED",
+  "ACKNOWLEDGED",
+] satisfies PrismaDispatchStatus[];
+
+const EDIT_BLOCKED_DISPATCH_STATUSES = [
+  "EN_ROUTE",
+  "ARRIVED",
+  "RETURNING_TO_BASE",
+  "RETURNED_TO_BASE",
+] satisfies PrismaDispatchStatus[];
+
+const ACTIVE_DISPATCH_STATUSES = [
+  ...EARLY_DISPATCH_STATUSES,
+  ...EDIT_BLOCKED_DISPATCH_STATUSES,
+] satisfies PrismaDispatchStatus[];
+
+const EDIT_BLOCKED_DISPATCH_STATUS_SET = new Set<PrismaDispatchStatus>(
+  EDIT_BLOCKED_DISPATCH_STATUSES
+);
 
 const reportListSelect = {
   address: true,
@@ -43,6 +67,29 @@ const reportListSelect = {
   summary: true,
   title: true,
   updatedAt: true,
+} as const;
+
+const reportDetailInclude = {
+  aiAnalyses: {
+    orderBy: { createdAt: "desc" as const },
+    take: 1,
+  },
+  assignedOperator: {
+    select: { id: true, name: true },
+  },
+  dispatches: {
+    orderBy: { requestedAt: "desc" as const },
+    select: { status: true },
+    take: 1,
+    where: { status: { in: ACTIVE_DISPATCH_STATUSES } },
+  },
+  reporter: {
+    include: { reporterProfile: true },
+  },
+  statusHistory: {
+    orderBy: { createdAt: "desc" as const },
+    take: 5,
+  },
 } as const;
 
 const toIsoString = (date: Date): string => date.toISOString();
@@ -68,6 +115,87 @@ const toStatusHistoryItem = (event: {
   note: event.note,
   toStatus: event.toStatus,
 });
+
+type ReportDetailRow =
+  Awaited<ReturnType<typeof findActiveDetailRow>> extends infer Result
+    ? NonNullable<Result>
+    : never;
+
+const findActiveDetailRow = (reportId: string) =>
+  prisma.emergencyReport.findFirst({
+    include: reportDetailInclude,
+    where: {
+      id: reportId,
+      status: { in: ACTIVE_STATUSES },
+    },
+  });
+
+const toReportDetail = (report: ReportDetailRow): ReportDetail => {
+  const [latestAnalysis] = report.aiAnalyses;
+  const [activeDispatch] = report.dispatches;
+  const dispatchBlocksChanges =
+    activeDispatch?.status !== undefined &&
+    EDIT_BLOCKED_DISPATCH_STATUS_SET.has(activeDispatch.status);
+  const blockReason = dispatchBlocksChanges
+    ? "Laporan tidak dapat diubah atau ditutup setelah unit mulai menuju lokasi"
+    : null;
+
+  return {
+    activeChannel: report.activeChannel,
+    address: report.address,
+    assignedOperator: report.assignedOperator,
+    canClose: !dispatchBlocksChanges,
+    canEdit: !dispatchBlocksChanges,
+    category: report.category,
+    closeBlockReason: blockReason,
+    contactPhone:
+      report.contactPhoneSnapshot ??
+      report.reporter.reporterProfile?.phoneNumber ??
+      null,
+    createdAt: toIsoString(report.createdAt),
+    editBlockReason: blockReason,
+    extractedData: report.extractedData,
+    handlingMode: report.handlingMode,
+    id: report.id,
+    incidentType: report.incidentType,
+    latestAnalysis: latestAnalysis
+      ? {
+          category: latestAnalysis.category,
+          confidenceScore: latestAnalysis.confidenceScore,
+          createdAt: toIsoString(latestAnalysis.createdAt),
+          incidentType: latestAnalysis.incidentType,
+          modelVersion: latestAnalysis.modelVersion,
+          recommendation: latestAnalysis.recommendation,
+          summary: latestAnalysis.summary,
+        }
+      : null,
+    latitude: report.latitude,
+    longitude: report.longitude,
+    recommendation: report.recommendation,
+    reporter: {
+      email: report.reporter.email,
+      emergencyContactName:
+        report.reporter.reporterProfile?.emergencyContactName ?? null,
+      emergencyContactPhone:
+        report.reporter.reporterProfile?.emergencyContactPhone ?? null,
+      id: report.reporter.id,
+      name: report.reporter.name,
+      phoneNumber: report.reporter.reporterProfile?.phoneNumber ?? null,
+    },
+    status: toActiveStatus(report.status),
+    statusHistory: report.statusHistory.map(toStatusHistoryItem),
+    summary: report.summary,
+    title: report.title,
+    updatedAt: toIsoString(report.updatedAt),
+  };
+};
+
+const isPrismaConflict = (error: unknown): boolean => {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return false;
+  }
+  return error.code === "P2002" || error.code === "P2034";
+};
 
 export class PrismaReportRepository implements ReportRepository {
   async listActive({
@@ -105,80 +233,8 @@ export class PrismaReportRepository implements ReportRepository {
   }
 
   async findActiveDetail(reportId: string): Promise<ReportDetail | null> {
-    const report = await prisma.emergencyReport.findFirst({
-      include: {
-        aiAnalyses: {
-          orderBy: { createdAt: "desc" },
-          take: 1,
-        },
-        assignedOperator: {
-          select: { id: true, name: true },
-        },
-        reporter: {
-          include: { reporterProfile: true },
-        },
-        statusHistory: {
-          orderBy: { createdAt: "desc" },
-          take: 5,
-        },
-      },
-      where: {
-        id: reportId,
-        status: { in: ACTIVE_STATUSES },
-      },
-    });
-
-    if (!report) {
-      return null;
-    }
-
-    const [latestAnalysis] = report.aiAnalyses;
-    const statusHistory = report.statusHistory.map(toStatusHistoryItem);
-
-    return {
-      activeChannel: report.activeChannel,
-      address: report.address,
-      assignedOperator: report.assignedOperator,
-      category: report.category,
-      contactPhone:
-        report.contactPhoneSnapshot ??
-        report.reporter.reporterProfile?.phoneNumber ??
-        null,
-      createdAt: toIsoString(report.createdAt),
-      extractedData: report.extractedData,
-      handlingMode: report.handlingMode,
-      id: report.id,
-      incidentType: report.incidentType,
-      latestAnalysis: latestAnalysis
-        ? {
-            category: latestAnalysis.category,
-            confidenceScore: latestAnalysis.confidenceScore,
-            createdAt: toIsoString(latestAnalysis.createdAt),
-            incidentType: latestAnalysis.incidentType,
-            modelVersion: latestAnalysis.modelVersion,
-            recommendation: latestAnalysis.recommendation,
-            summary: latestAnalysis.summary,
-          }
-        : null,
-      latitude: report.latitude,
-      longitude: report.longitude,
-      recommendation: report.recommendation,
-      reporter: {
-        email: report.reporter.email,
-        emergencyContactName:
-          report.reporter.reporterProfile?.emergencyContactName ?? null,
-        emergencyContactPhone:
-          report.reporter.reporterProfile?.emergencyContactPhone ?? null,
-        id: report.reporter.id,
-        name: report.reporter.name,
-        phoneNumber: report.reporter.reporterProfile?.phoneNumber ?? null,
-      },
-      status: toActiveStatus(report.status),
-      statusHistory,
-      summary: report.summary,
-      title: report.title,
-      updatedAt: toIsoString(report.updatedAt),
-    };
+    const report = await findActiveDetailRow(reportId);
+    return report ? toReportDetail(report) : null;
   }
 
   async findArchivedDetail(
@@ -222,6 +278,8 @@ export class PrismaReportRepository implements ReportRepository {
       assignedOperator: report.assignedOperator,
       category: report.category,
       closedAt: report.closedAt ? toIsoString(report.closedAt) : null,
+      closureNote: report.closureNote,
+      closureReason: report.closureReason,
       createdAt: toIsoString(report.createdAt),
       dispatches: report.dispatches.map((dispatch) => ({
         acknowledgedAt: dispatch.acknowledgedAt
@@ -390,5 +448,153 @@ export class PrismaReportRepository implements ReportRepository {
         },
       ];
     });
+  }
+
+  async updateDetail(input: UpdateReportDetailInput): Promise<ReportDetail> {
+    try {
+      await prisma.$transaction(
+        async (transaction) => {
+          const report = await transaction.emergencyReport.findFirst({
+            include: {
+              aiAnalyses: {
+                orderBy: { createdAt: "desc" },
+                take: 1,
+              },
+              dispatches: {
+                orderBy: { requestedAt: "desc" },
+                take: 1,
+                where: { status: { in: ACTIVE_DISPATCH_STATUSES } },
+              },
+              reporter: {
+                include: { reporterProfile: true },
+              },
+            },
+            where: {
+              id: input.reportId,
+              status: { in: ACTIVE_STATUSES },
+            },
+          });
+          if (!report) {
+            throw new ReportUpdateApplicationError(
+              "NOT_FOUND",
+              "Laporan aktif tidak ditemukan"
+            );
+          }
+
+          const [activeDispatch] = report.dispatches;
+          if (
+            activeDispatch &&
+            EDIT_BLOCKED_DISPATCH_STATUS_SET.has(activeDispatch.status)
+          ) {
+            throw new ReportUpdateApplicationError(
+              "PRECONDITION_FAILED",
+              "Laporan tidak dapat diubah setelah unit mulai menuju lokasi"
+            );
+          }
+
+          const updated = await transaction.emergencyReport.updateMany({
+            data: {
+              address: input.detail.address,
+              category: input.detail.category,
+              extractedData: input.detail.extractedData ?? undefined,
+              incidentType: input.detail.incidentType,
+              latitude: input.detail.latitude,
+              longitude: input.detail.longitude,
+              recommendation: input.detail.recommendation,
+              summary: input.detail.summary,
+              title: input.detail.title,
+            },
+            where: {
+              id: input.reportId,
+              status: { in: ACTIVE_STATUSES },
+              updatedAt: input.expectedUpdatedAt,
+            },
+          });
+          if (updated.count !== 1) {
+            throw new ReportUpdateApplicationError(
+              "CONFLICT",
+              "Detail laporan telah diubah oleh operator atau proses lain"
+            );
+          }
+
+          if (activeDispatch) {
+            const [latestAnalysis] = report.aiAnalyses;
+            const snapshot = {
+              latestAnalysis: latestAnalysis
+                ? {
+                    category: latestAnalysis.category,
+                    confidenceScore: latestAnalysis.confidenceScore,
+                    createdAt: latestAnalysis.createdAt.toISOString(),
+                    incidentType: latestAnalysis.incidentType,
+                    modelVersion: latestAnalysis.modelVersion,
+                    recommendation: latestAnalysis.recommendation,
+                    summary: latestAnalysis.summary,
+                  }
+                : null,
+              location: {
+                address: input.detail.address,
+                latitude: input.detail.latitude,
+                longitude: input.detail.longitude,
+              },
+              report: {
+                category: input.detail.category,
+                extractedData: input.detail.extractedData,
+                incidentType: input.detail.incidentType,
+                recommendation: input.detail.recommendation,
+                summary: input.detail.summary,
+                title: input.detail.title,
+              },
+              reporter: {
+                email: report.reporter.email,
+                emergencyContactName:
+                  report.reporter.reporterProfile?.emergencyContactName ?? null,
+                emergencyContactPhone:
+                  report.reporter.reporterProfile?.emergencyContactPhone ??
+                  null,
+                id: report.reporter.id,
+                name: report.reporter.name,
+                phoneNumber:
+                  report.contactPhoneSnapshot ??
+                  report.reporter.reporterProfile?.phoneNumber ??
+                  null,
+              },
+            };
+            const dispatchUpdated =
+              await transaction.dispatchRequest.updateMany({
+                data: { structuredReportSnapshot: snapshot },
+                where: {
+                  id: activeDispatch.id,
+                  status: { in: EARLY_DISPATCH_STATUSES },
+                },
+              });
+            if (dispatchUpdated.count !== 1) {
+              throw new ReportUpdateApplicationError(
+                "CONFLICT",
+                "Dispatch bergerak ke tahap berikutnya saat laporan disimpan"
+              );
+            }
+          }
+        },
+        { isolationLevel: "Serializable" }
+      );
+
+      const detail = await this.findActiveDetail(input.reportId);
+      if (!detail) {
+        throw new ReportUpdateApplicationError(
+          "NOT_FOUND",
+          "Laporan aktif tidak ditemukan setelah diperbarui"
+        );
+      }
+      return detail;
+    } catch (error) {
+      if (isPrismaConflict(error)) {
+        throw ReportUpdateApplicationError.withCause(
+          "CONFLICT",
+          "Detail laporan telah diubah oleh proses lain",
+          error
+        );
+      }
+      throw error;
+    }
   }
 }

@@ -17,6 +17,8 @@ import {
 import type { ReactNode } from "react";
 
 import { ReportDispatchSection } from "@/features/dispatch/components/report-dispatch-section";
+import { CloseReportDialog } from "@/features/reports/components/close-report-dialog";
+import { ReportEditDialog } from "@/features/reports/components/report-edit-dialog";
 import {
   CATEGORY_CONFIG,
   formatCoordinates,
@@ -152,12 +154,6 @@ function LocationSection({ report }: { report: ReportDetail }) {
 }
 
 function AnalysisSection({ report }: { report: ReportDetail }) {
-  const confidenceScore = report.latestAnalysis?.confidenceScore;
-  const confidenceLabel =
-    confidenceScore === null || confidenceScore === undefined
-      ? "Belum tersedia"
-      : `${Math.round(confidenceScore * 100)}%`;
-
   return (
     <section>
       <h2 className="font-semibold text-foreground text-sm">Analisis AI</h2>
@@ -175,7 +171,6 @@ function AnalysisSection({ report }: { report: ReportDetail }) {
             "Belum tersedia"
           }
         />
-        <DetailRow label="Confidence" value={confidenceLabel} />
       </dl>
     </section>
   );
@@ -322,6 +317,11 @@ function LoadedReportDetail({
               value={report.handlingMode === "AI" ? "AI" : "Operator"}
             />
           </dl>
+          {report.editBlockReason ? (
+            <p className="mt-3 text-[10px] text-muted-foreground">
+              {report.editBlockReason}
+            </p>
+          ) : null}
         </section>
 
         <Separator className="my-4" />
@@ -340,6 +340,13 @@ function LoadedReportDetail({
         <AdditionalDataSection report={report} />
         <Separator className="my-4" />
         <StatusHistorySection report={report} />
+        <div className="-mx-4 mt-4 -mb-4 flex flex-col gap-2 border-t bg-muted/30 p-4">
+          <ReportEditDialog report={report} />
+          <CloseReportDialog
+            onReportClosed={onReportResolved}
+            report={report}
+          />
+        </div>
       </div>
     </aside>
   );

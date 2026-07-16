@@ -1,7 +1,9 @@
 import type {
   AgencyBoardRecord,
+  CloseReportResult,
   DispatchRecord,
   DispatchReportContext,
+  ReportClosureReason,
 } from "./entities";
 
 export interface CreateDispatchInput {
@@ -29,7 +31,15 @@ export interface ResolveDispatchInput {
   operatorId: string;
 }
 
+export interface CloseReportInput {
+  note?: string;
+  operatorId: string;
+  reason: ReportClosureReason;
+  reportId: string;
+}
+
 export interface DispatchRepository {
+  closeReport: (input: CloseReportInput) => Promise<CloseReportResult>;
   createDispatch: (input: CreateDispatchInput) => Promise<DispatchRecord>;
   findDispatchById: (dispatchId: string) => Promise<DispatchRecord | null>;
   findReportContext: (

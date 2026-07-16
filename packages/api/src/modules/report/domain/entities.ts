@@ -35,6 +35,55 @@ export type IncidentType =
   | "MISSING_PERSON"
   | "OTHER";
 
+export type ReportJsonValue =
+  | boolean
+  | number
+  | string
+  | null
+  | ReportJsonValue[]
+  | { [key: string]: ReportJsonValue };
+
+export interface ReportEditableDetail {
+  address: string | null;
+  category: ReportCategory;
+  extractedData: ReportJsonValue;
+  incidentType: IncidentType | null;
+  latitude: number | null;
+  longitude: number | null;
+  recommendation: string | null;
+  summary: string | null;
+  title: string | null;
+}
+
+export type ReportUpdateApplicationErrorCode =
+  | "BAD_REQUEST"
+  | "CONFLICT"
+  | "NOT_FOUND"
+  | "PRECONDITION_FAILED";
+
+export class ReportUpdateApplicationError extends Error {
+  readonly code: ReportUpdateApplicationErrorCode;
+
+  constructor(code: ReportUpdateApplicationErrorCode, message: string) {
+    super(message);
+    this.code = code;
+    this.name = "ReportUpdateApplicationError";
+  }
+
+  static withCause(
+    code: ReportUpdateApplicationErrorCode,
+    message: string,
+    cause: unknown
+  ): ReportUpdateApplicationError {
+    const error = new ReportUpdateApplicationError(code, message);
+    Object.defineProperty(error, "cause", {
+      configurable: true,
+      value: cause,
+    });
+    return error;
+  }
+}
+
 export interface ActiveReportListItem {
   address: string | null;
   category: ReportCategory;
@@ -125,6 +174,8 @@ export interface ArchivedReportDetail {
   } | null;
   category: ReportCategory;
   closedAt: string | null;
+  closureNote: string | null;
+  closureReason: "PRANK_CALL" | "INCOMPLETE_REPORT" | "OTHER" | null;
   createdAt: string;
   dispatches: ArchivedReportDispatchItem[];
   id: string;
@@ -159,9 +210,13 @@ export interface ReportDetail {
     id: string;
     name: string;
   } | null;
+  canClose: boolean;
+  canEdit: boolean;
   category: ReportCategory;
+  closeBlockReason: string | null;
   contactPhone: string | null;
   createdAt: string;
+  editBlockReason: string | null;
   extractedData: unknown;
   handlingMode: "AI" | "HUMAN";
   id: string;

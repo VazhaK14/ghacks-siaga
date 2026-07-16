@@ -31,6 +31,34 @@ const incidentTypeSchema = z.enum([
   "OTHER",
 ]);
 
+const editableReportDetailSchema = z
+  .object({
+    address: z.string().trim().max(500).nullable(),
+    category: reportCategorySchema,
+    extractedData: z.json(),
+    incidentType: incidentTypeSchema.nullable(),
+    latitude: z.number().min(-90).max(90).nullable(),
+    longitude: z.number().min(-180).max(180).nullable(),
+    recommendation: z.string().trim().max(2000).nullable(),
+    summary: z.string().trim().max(5000).nullable(),
+    title: z.string().trim().max(250).nullable(),
+  })
+  .superRefine((detail, context) => {
+    if ((detail.latitude === null) !== (detail.longitude === null)) {
+      context.addIssue({
+        code: "custom",
+        message: "Latitude dan longitude harus diisi atau dikosongkan bersama",
+        path: ["latitude"],
+      });
+    }
+  });
+
+export const updateReportDetailInputSchema = z.object({
+  detail: editableReportDetailSchema,
+  expectedUpdatedAt: z.iso.datetime(),
+  reportId: z.string().min(1),
+});
+
 export const listActiveReportsInputSchema = z.object({
   cursor: z.string().min(1).optional(),
   limit: z.number().int().min(1).max(25).default(10),
@@ -126,9 +154,13 @@ export const reportDetailSchema = z.object({
       name: z.string(),
     })
     .nullable(),
+  canClose: z.boolean(),
+  canEdit: z.boolean(),
   category: reportCategorySchema,
+  closeBlockReason: z.string().nullable(),
   contactPhone: z.string().nullable(),
   createdAt: z.iso.datetime(),
+  editBlockReason: z.string().nullable(),
   extractedData: z.unknown(),
   handlingMode: z.enum(["AI", "HUMAN"]),
   id: z.string(),
@@ -190,6 +222,10 @@ export const archivedReportDetailSchema = z.object({
     .nullable(),
   category: reportCategorySchema,
   closedAt: z.iso.datetime().nullable(),
+  closureNote: z.string().nullable(),
+  closureReason: z
+    .enum(["PRANK_CALL", "INCOMPLETE_REPORT", "OTHER"])
+    .nullable(),
   createdAt: z.iso.datetime(),
   dispatches: z.array(
     z.object({

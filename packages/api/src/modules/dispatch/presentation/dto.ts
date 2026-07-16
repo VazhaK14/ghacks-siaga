@@ -111,3 +111,15 @@ export const createDispatchInputSchema = z.object({
 export const dispatchIdInputSchema = z.object({
   dispatchId: z.string().min(1),
 });
+
+export const closeReportInputSchema = z.object({
+  note: z.string().trim().max(1000).optional(),
+  reason: z.enum(["PRANK_CALL", "INCOMPLETE_REPORT", "OTHER"]),
+  reportId: z.string().min(1),
+});
+
+export const closeReportResultSchema = z.object({
+  cancelledDispatchId: z.string().nullable(),
+  closedAt: z.iso.datetime(),
+  reportId: z.string(),
+});

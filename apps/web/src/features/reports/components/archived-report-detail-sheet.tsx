@@ -33,6 +33,12 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+const CLOSURE_REASON_LABELS = {
+  INCOMPLETE_REPORT: "Laporan tidak lengkap",
+  OTHER: "Lainnya",
+  PRANK_CALL: "Prank call",
+} as const;
+
 export function ArchivedReportDetailSheet({
   onOpenChange,
   reportId,
@@ -113,6 +119,22 @@ export function ArchivedReportDetailSheet({
                   {report.address ?? "Alamat tidak tersedia."}
                 </p>
               </div>
+
+              {report.closureReason ? (
+                <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3">
+                  <h3 className="font-semibold text-destructive text-sm">
+                    Alasan penutupan
+                  </h3>
+                  <p className="mt-1 text-xs">
+                    {CLOSURE_REASON_LABELS[report.closureReason]}
+                  </p>
+                  {report.closureNote ? (
+                    <p className="mt-2 text-muted-foreground text-xs">
+                      {report.closureNote}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div>
                 <h3 className="flex items-center gap-2 font-semibold text-foreground text-sm">

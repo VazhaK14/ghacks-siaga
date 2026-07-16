@@ -65,6 +65,7 @@ model DispatchRequest {
   estimatedReturnAt DateTime?
   returnedAt     DateTime?
   completedAt    DateTime?
+  cancelledAt    DateTime?
   unitCode       String?
 
   @@index([reportId])

@@ -24,6 +24,15 @@ export class DispatchSimulationScheduler {
     this.publishDispatch = publishDispatch;
   }
 
+  cancel(dispatchId: string): void {
+    const timer = this.timers.get(dispatchId);
+    if (!timer) {
+      return;
+    }
+    clearTimeout(timer);
+    this.timers.delete(dispatchId);
+  }
+
   resume(dispatch: DispatchTracking): void {
     const existingTimer = this.timers.get(dispatch.id);
     if (existingTimer) {
