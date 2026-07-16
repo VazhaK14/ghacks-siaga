@@ -1,17 +1,31 @@
 {
   "expo": {
     "scheme": "siaga-app",
-    "userInterfaceStyle": "automatic",
-    "orientation": "default",
+    "userInterfaceStyle": "light",
+    "orientation": "portrait",
     "web": {
       "bundler": "metro"
     },
-    "name": "siaga-app",
+    "name": "SIAGA",
     "slug": "siaga-app",
-    "plugins": ["expo-font", "expo-splash-screen"],
+    "plugins": [
+      "expo-font",
+      "expo-splash-screen",
+      "expo-image",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "SIAGA menggunakan lokasi Anda untuk mempercepat bantuan saat SOS."
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "android": {
+      "package": "com.anonymous.siagaapp"
     }
   }
 }
