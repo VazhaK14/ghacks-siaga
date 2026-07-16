@@ -1,43 +1,46 @@
 import { Button } from "@siaga-app/ui/components/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@siaga-app/ui/components/card";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@siaga-app/ui/components/dialog";
 import { Input } from "@siaga-app/ui/components/input";
 import { Label } from "@siaga-app/ui/components/label";
 import { useForm } from "@tanstack/react-form";
-import { type ChangeEvent, type FormEvent, useCallback } from "react";
-import { useNavigate } from "react-router";
+import { type ChangeEvent, type FormEvent, useCallback, useState } from "react";
 import { toast } from "sonner";
 
-import { useLoginMutation } from "../api";
-import { loginSchema } from "../types";
+import { useCreateOperatorMutation } from "../api";
+import { createOperatorSchema } from "../types";
 
-export function LoginForm() {
-  const navigate = useNavigate();
-  const loginMutation = useLoginMutation();
+export function CreateOperatorDialog() {
+  const [open, setOpen] = useState(false);
+  const createOperatorMutation = useCreateOperatorMutation();
 
   const form = useForm({
     defaultValues: {
       email: "",
+      name: "",
       password: "",
     },
-    onSubmit: ({ value }) => {
-      loginMutation.mutate(value, {
+    onSubmit: ({ value, formApi }) => {
+      createOperatorMutation.mutate(value, {
         onError: (error) => {
           toast.error(error.message);
         },
         onSuccess: () => {
-          toast.success("Sign in successful");
-          navigate("/");
+          toast.success("Operator berhasil ditambahkan");
+          formApi.reset();
+          setOpen(false);
         },
       });
     },
     validators: {
-      onSubmit: loginSchema,
+      onSubmit: createOperatorSchema,
     },
   });
 
@@ -46,6 +49,13 @@ export function LoginForm() {
       e.preventDefault();
       e.stopPropagation();
       form.handleSubmit();
+    },
+    [form]
+  );
+
+  const handleNameChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      form.setFieldValue("name", e.target.value);
     },
     [form]
   );
@@ -73,15 +83,37 @@ export function LoginForm() {
   );
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-h3">Operator sign in</CardTitle>
-        <CardDescription>
-          Masuk dengan akun operator untuk mengakses dashboard.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
+    <Dialog onOpenChange={setOpen} open={open}>
+      <DialogTrigger render={<Button />}>Tambah Operator</DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Tambah Operator</DialogTitle>
+          <DialogDescription>
+            Buat akun operator baru untuk mengakses dashboard.
+          </DialogDescription>
+        </DialogHeader>
+
         <form className="space-y-4" onSubmit={handleSubmit}>
+          <form.Field name="name">
+            {(field) => (
+              <div className="space-y-2">
+                <Label htmlFor={field.name}>Nama</Label>
+                <Input
+                  id={field.name}
+                  name={field.name}
+                  onBlur={field.handleBlur}
+                  onChange={handleNameChange}
+                  value={field.state.value}
+                />
+                {field.state.meta.errors.map((error) => (
+                  <p className="text-red-500 text-sm" key={error?.message}>
+                    {error?.message}
+                  </p>
+                ))}
+              </div>
+            )}
+          </form.Field>
+
           <form.Field name="email">
             {(field) => (
               <div className="space-y-2">
@@ -124,19 +156,17 @@ export function LoginForm() {
             )}
           </form.Field>
 
-          <form.Subscribe selector={selectFormState}>
-            {({ canSubmit, isSubmitting }) => (
-              <Button
-                className="w-full"
-                disabled={!canSubmit || isSubmitting}
-                type="submit"
-              >
-                {isSubmitting ? "Signing in..." : "Sign In"}
-              </Button>
-            )}
-          </form.Subscribe>
+          <DialogFooter>
+            <form.Subscribe selector={selectFormState}>
+              {({ canSubmit, isSubmitting }) => (
+                <Button disabled={!canSubmit || isSubmitting} type="submit">
+                  {isSubmitting ? "Menyimpan..." : "Simpan"}
+                </Button>
+              )}
+            </form.Subscribe>
+          </DialogFooter>
         </form>
-      </CardContent>
-    </Card>
+      </DialogContent>
+    </Dialog>
   );
 }

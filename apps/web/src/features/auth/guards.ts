@@ -23,15 +23,16 @@ export async function requireOperatorSession(request: Request) {
   if (!result?.user) {
     throw redirect("/login");
   }
-  if (result.user.role !== "OPERATOR") {
+  const { user } = result;
+  if (user.role !== "OPERATOR") {
     throw redirect("/login?error=not-operator");
   }
-  return result;
+  return { session: result.session, user };
 }
 
 export async function redirectIfAuthenticated(request: Request) {
   const result = await fetchSession(request);
   if (result?.user?.role === "OPERATOR") {
-    throw redirect("/dashboard");
+    throw redirect("/");
   }
 }

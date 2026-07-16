@@ -13,7 +13,6 @@ import {
 } from "react-router";
 
 import type { Route } from "./+types/root";
-import Header from "./components/header";
 import { ThemeProvider } from "./components/theme-provider";
 import { queryClient } from "./utils/trpc";
 
@@ -57,10 +56,7 @@ export default function App() {
         disableTransitionOnChange
         storageKey="vite-ui-theme"
       >
-        <div className="grid h-svh grid-rows-[auto_1fr]">
-          <Header />
-          <Outlet />
-        </div>
+        <Outlet />
         <Toaster richColors />
       </ThemeProvider>
       <ReactQueryDevtools buttonPosition="bottom-right" position="bottom" />
