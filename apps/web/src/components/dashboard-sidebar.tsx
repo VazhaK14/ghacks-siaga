@@ -22,8 +22,6 @@ import {
   GaugeIcon,
   LogOutIcon,
   MapPinnedIcon,
-  SettingsIcon,
-  ShieldCheckIcon,
   SirenIcon,
   UsersIcon,
 } from "lucide-react";
@@ -39,7 +37,6 @@ const NAV_ITEMS = [
   { icon: ClipboardListIcon, label: "Riwayat Laporan", to: "/laporan" },
   { icon: SirenIcon, label: "Unit Respons", to: "/unit-respons" },
   { icon: UsersIcon, label: "Operator", to: "/operators" },
-  { icon: SettingsIcon, label: "Pengaturan", to: "/pengaturan" },
 ] as const;
 
 interface DashboardSidebarUser {
@@ -74,7 +71,13 @@ export function DashboardSidebar({ user }: { user: DashboardSidebarUser }) {
       <SidebarHeader className="border-b px-4 py-4">
         <span className="flex items-center gap-3">
           <span className="flex size-9 items-center justify-center rounded-md bg-primary-10 text-primary-300">
-            <ShieldCheckIcon aria-hidden />
+            <img
+              alt=""
+              className="object-contain"
+              height={36}
+              src="/logo.png"
+              width={36}
+            />
           </span>
           <span>
             <span className="block font-extrabold text-base text-foreground">

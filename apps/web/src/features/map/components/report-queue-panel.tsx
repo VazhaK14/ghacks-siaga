@@ -127,7 +127,7 @@ export function ReportQueuePanel({
             onClick={onLoadMore}
             size="sm"
             type="button"
-            variant="secondary"
+            variant="primary"
           >
             {isFetchingNextPage ? (
               <LoaderCircleIcon
