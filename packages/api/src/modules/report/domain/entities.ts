@@ -204,14 +204,34 @@ export interface ReportStatusHistoryItem {
 }
 
 export interface ReportDetail {
+  acknowledgements: ("HELP_VISIBLE" | "WITH_RESPONDER")[];
+  acousticSignals: {
+    code: string;
+    confidence: number;
+    createdAt: string;
+    endedAt: string;
+    id: string;
+    startedAt: string;
+    status: "INFERRED" | "CONFIRMED" | "REJECTED";
+  }[];
   activeChannel: "VOICE" | "CHAT" | null;
   address: string | null;
   assignedOperator: {
     id: string;
     name: string;
   } | null;
+  callSession: {
+    id: string;
+    status: "CREATED" | "CONNECTING" | "ACTIVE" | "ENDING" | "ENDED" | "FAILED";
+  } | null;
   canClose: boolean;
+  cancellationRequest: {
+    createdAt: string;
+    reason: string;
+    status: "PENDING" | "APPROVED" | "REJECTED";
+  } | null;
   canEdit: boolean;
+  canTakeOver: boolean;
   category: ReportCategory;
   closeBlockReason: string | null;
   contactPhone: string | null;
@@ -221,6 +241,7 @@ export interface ReportDetail {
   handlingMode: "AI" | "HUMAN";
   id: string;
   incidentType: IncidentType | null;
+  interactionMode: "VOICE" | "TEXT" | "SILENT" | null;
   latestAnalysis: {
     category: ReportCategory;
     confidenceScore: number | null;
@@ -232,7 +253,31 @@ export interface ReportDetail {
   } | null;
   latitude: number | null;
   longitude: number | null;
+  messages: {
+    content: string;
+    createdAt: string;
+    id: string;
+    senderType: "REPORTER" | "AI_AGENT" | "OPERATOR" | "SYSTEM";
+    sequence: number;
+    type:
+      | "REPORTER_TEXT"
+      | "OPERATOR_TEXT"
+      | "AI_TEXT"
+      | "TRANSCRIPT_FINAL"
+      | "SYSTEM";
+  }[];
   recommendation: string | null;
+  recording: {
+    id: string;
+    status:
+      | "NOT_STARTED"
+      | "RECORDING"
+      | "FINALIZING"
+      | "UPLOADING"
+      | "READY"
+      | "FAILED_FINAL"
+      | "DELETED";
+  } | null;
   reporter: {
     email: string;
     emergencyContactName: string | null;
@@ -241,9 +286,11 @@ export interface ReportDetail {
     name: string;
     phoneNumber: string | null;
   };
+  responderPreference: "AI" | "OPERATOR";
   status: ActiveReportStatus;
   statusHistory: ReportStatusHistoryItem[];
   summary: string | null;
+  takeoverBlockReason: string | null;
   title: string | null;
   updatedAt: string;
 }

@@ -20,9 +20,11 @@ import type {
 const INITIAL_INCIDENT: IncidentState = {
   category: "Kriminal",
   connectionTarget: "ai",
+  idempotencyKey: null,
   location: null,
   mode: null,
   phase: "idle",
+  reportId: null,
 };
 
 const IncidentContext = createContext<IncidentContextValue | null>(null);
@@ -35,7 +37,11 @@ export function IncidentProvider({ children }: PropsWithChildren) {
   }, []);
 
   const beginIncident = useCallback(() => {
-    setIncident((current) => ({ ...current, phase: "choosing-mode" }));
+    setIncident((current) => ({
+      ...current,
+      idempotencyKey: `report-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      phase: "choosing-mode",
+    }));
   }, []);
 
   const setMode = useCallback((mode: ReportMode) => {
@@ -52,6 +58,10 @@ export function IncidentProvider({ children }: PropsWithChildren) {
 
   const setPhase = useCallback((phase: IncidentPhase) => {
     setIncident((current) => ({ ...current, phase }));
+  }, []);
+
+  const setReportId = useCallback((reportId: string) => {
+    setIncident((current) => ({ ...current, reportId }));
   }, []);
 
   const cancelIncident = useCallback(() => {
@@ -73,6 +83,7 @@ export function IncidentProvider({ children }: PropsWithChildren) {
       setLocation,
       setMode,
       setPhase,
+      setReportId,
     }),
     [
       incident,
@@ -84,6 +95,7 @@ export function IncidentProvider({ children }: PropsWithChildren) {
       setLocation,
       setMode,
       setPhase,
+      setReportId,
     ]
   );
 

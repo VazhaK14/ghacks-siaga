@@ -31,6 +31,159 @@ const incidentTypeSchema = z.enum([
   "OTHER",
 ]);
 
+const interactionModeSchema = z.enum(["VOICE", "TEXT", "SILENT"]);
+const responderPreferenceSchema = z.enum(["AI", "OPERATOR"]);
+
+const reporterReportStatusSchema = z.union([
+  activeReportStatusSchema,
+  terminalReportStatusSchema,
+]);
+
+const reporterMessageSchema = z.object({
+  content: z.string(),
+  createdAt: z.iso.datetime(),
+  id: z.string(),
+  senderType: z.enum(["REPORTER", "AI_AGENT", "OPERATOR", "SYSTEM"]),
+  sequence: z.number().int().nonnegative(),
+  type: z.enum([
+    "REPORTER_TEXT",
+    "OPERATOR_TEXT",
+    "AI_TEXT",
+    "TRANSCRIPT_FINAL",
+    "SYSTEM",
+  ]),
+});
+
+const reporterReportListItemSchema = z.object({
+  category: reportCategorySchema,
+  createdAt: z.iso.datetime(),
+  id: z.string(),
+  incidentType: incidentTypeSchema.nullable(),
+  interactionMode: interactionModeSchema.nullable(),
+  status: reporterReportStatusSchema,
+  summary: z.string().nullable(),
+  title: z.string().nullable(),
+  updatedAt: z.iso.datetime(),
+});
+
+export const reporterReportDetailSchema = reporterReportListItemSchema.extend({
+  acknowledgements: z.array(z.enum(["HELP_VISIBLE", "WITH_RESPONDER"])),
+  address: z.string().nullable(),
+  assignedOperator: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+    })
+    .nullable(),
+  callSession: z
+    .object({
+      id: z.string(),
+      status: z.enum([
+        "CREATED",
+        "CONNECTING",
+        "ACTIVE",
+        "ENDING",
+        "ENDED",
+        "FAILED",
+      ]),
+    })
+    .nullable(),
+  cancellationRequest: z
+    .object({
+      createdAt: z.iso.datetime(),
+      reason: z.string(),
+      status: z.enum(["PENDING", "APPROVED", "REJECTED"]),
+    })
+    .nullable(),
+  latestDispatch: z
+    .object({
+      agencyName: z.string().nullable(),
+      estimatedArrivalAt: z.iso.datetime().nullable(),
+      status: z.string(),
+      unitCode: z.string().nullable(),
+    })
+    .nullable(),
+  latitude: z.number().nullable(),
+  longitude: z.number().nullable(),
+  messages: z.array(reporterMessageSchema),
+  recommendation: z.string().nullable(),
+  recordingStatus: z
+    .enum([
+      "NOT_STARTED",
+      "RECORDING",
+      "FINALIZING",
+      "UPLOADING",
+      "READY",
+      "FAILED_FINAL",
+      "DELETED",
+    ])
+    .nullable(),
+  responderPreference: responderPreferenceSchema,
+});
+
+export const createReporterReportInputSchema = z
+  .object({
+    address: z.string().trim().max(500).optional(),
+    idempotencyKey: z.string().min(16).max(100),
+    incidentType: incidentTypeSchema.optional(),
+    interactionMode: interactionModeSchema,
+    latitude: z.number().min(-90).max(90).optional(),
+    longitude: z.number().min(-180).max(180).optional(),
+    responderPreference: responderPreferenceSchema,
+  })
+  .superRefine((input, context) => {
+    if ((input.latitude === undefined) !== (input.longitude === undefined)) {
+      context.addIssue({
+        code: "custom",
+        message: "Latitude dan longitude harus dikirim bersama",
+        path: ["latitude"],
+      });
+    }
+  });
+
+export const reporterReportIdInputSchema = z.object({
+  reportId: z.string().min(1),
+});
+
+export const updateReporterLocationInputSchema =
+  reporterReportIdInputSchema.extend({
+    address: z.string().trim().max(500).optional(),
+    latitude: z.number().min(-90).max(90),
+    longitude: z.number().min(-180).max(180),
+  });
+
+export const appendReporterTextInputSchema = reporterReportIdInputSchema.extend(
+  {
+    content: z.string().trim().min(1).max(5000),
+    idempotencyKey: z.string().min(16).max(100),
+  }
+);
+
+export const switchReporterModeInputSchema = reporterReportIdInputSchema.extend(
+  {
+    interactionMode: interactionModeSchema,
+  }
+);
+
+export const requestReporterCancellationInputSchema =
+  reporterReportIdInputSchema.extend({
+    reason: z.string().trim().min(3).max(500),
+  });
+
+export const acknowledgeReporterInputSchema =
+  reporterReportIdInputSchema.extend({
+    type: z.enum(["HELP_VISIBLE", "WITH_RESPONDER"]),
+  });
+
+export const reporterReportListSchema = z.array(reporterReportListItemSchema);
+
+export const liveKitConnectionSchema = z.object({
+  available: z.boolean(),
+  message: z.string().nullable(),
+  token: z.string().nullable(),
+  url: z.url().nullable(),
+});
+
 const editableReportDetailSchema = z
   .object({
     address: z.string().trim().max(500).nullable(),
@@ -146,6 +299,18 @@ export const reportMapPointsSchema = z.array(
 );
 
 export const reportDetailSchema = z.object({
+  acknowledgements: z.array(z.enum(["HELP_VISIBLE", "WITH_RESPONDER"])),
+  acousticSignals: z.array(
+    z.object({
+      code: z.string(),
+      confidence: z.number().min(0).max(1),
+      createdAt: z.iso.datetime(),
+      endedAt: z.iso.datetime(),
+      id: z.string(),
+      startedAt: z.iso.datetime(),
+      status: z.enum(["INFERRED", "CONFIRMED", "REJECTED"]),
+    })
+  ),
   activeChannel: z.enum(["VOICE", "CHAT"]).nullable(),
   address: z.string().nullable(),
   assignedOperator: z
@@ -154,8 +319,29 @@ export const reportDetailSchema = z.object({
       name: z.string(),
     })
     .nullable(),
+  callSession: z
+    .object({
+      id: z.string(),
+      status: z.enum([
+        "CREATED",
+        "CONNECTING",
+        "ACTIVE",
+        "ENDING",
+        "ENDED",
+        "FAILED",
+      ]),
+    })
+    .nullable(),
   canClose: z.boolean(),
+  cancellationRequest: z
+    .object({
+      createdAt: z.iso.datetime(),
+      reason: z.string(),
+      status: z.enum(["PENDING", "APPROVED", "REJECTED"]),
+    })
+    .nullable(),
   canEdit: z.boolean(),
+  canTakeOver: z.boolean(),
   category: reportCategorySchema,
   closeBlockReason: z.string().nullable(),
   contactPhone: z.string().nullable(),
@@ -165,6 +351,7 @@ export const reportDetailSchema = z.object({
   handlingMode: z.enum(["AI", "HUMAN"]),
   id: z.string(),
   incidentType: incidentTypeSchema.nullable(),
+  interactionMode: interactionModeSchema.nullable(),
   latestAnalysis: z
     .object({
       category: reportCategorySchema,
@@ -178,7 +365,22 @@ export const reportDetailSchema = z.object({
     .nullable(),
   latitude: z.number().nullable(),
   longitude: z.number().nullable(),
+  messages: z.array(reporterMessageSchema),
   recommendation: z.string().nullable(),
+  recording: z
+    .object({
+      id: z.string(),
+      status: z.enum([
+        "NOT_STARTED",
+        "RECORDING",
+        "FINALIZING",
+        "UPLOADING",
+        "READY",
+        "FAILED_FINAL",
+        "DELETED",
+      ]),
+    })
+    .nullable(),
   reporter: z.object({
     email: z.string(),
     emergencyContactName: z.string().nullable(),
@@ -187,6 +389,7 @@ export const reportDetailSchema = z.object({
     name: z.string(),
     phoneNumber: z.string().nullable(),
   }),
+  responderPreference: responderPreferenceSchema,
   status: activeReportStatusSchema,
   statusHistory: z.array(
     z.object({
@@ -199,6 +402,7 @@ export const reportDetailSchema = z.object({
     })
   ),
   summary: z.string().nullable(),
+  takeoverBlockReason: z.string().nullable(),
   title: z.string().nullable(),
   updatedAt: z.iso.datetime(),
 });

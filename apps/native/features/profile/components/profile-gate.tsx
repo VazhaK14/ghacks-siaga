@@ -3,31 +3,27 @@ import type { PropsWithChildren } from "react";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 
-import { useProfile } from "../context";
+import { useProfile } from "@/features/profile/context";
+
+const PROFILE_SETUP_ROUTE = "profile-setup";
 
 export function ProfileGate({ children }: PropsWithChildren) {
-  const { hasCompletedSetup, isHydrated } = useProfile();
   const router = useRouter();
   const segments = useSegments();
-  const isSetupRoute = segments[0] === "profile-setup";
-  const shouldOpenSetup = isHydrated && !hasCompletedSetup && !isSetupRoute;
-  const shouldOpenApp = isHydrated && hasCompletedSetup && isSetupRoute;
+  const { hasCompletedSetup, isHydrated } = useProfile();
+  const isOnProfileSetup = segments[0] === PROFILE_SETUP_ROUTE;
+  const shouldRedirect = isHydrated && !hasCompletedSetup && !isOnProfileSetup;
 
   useEffect(() => {
-    if (shouldOpenSetup) {
+    if (shouldRedirect) {
       router.replace("/profile-setup");
-      return;
     }
+  }, [router, shouldRedirect]);
 
-    if (shouldOpenApp) {
-      router.replace("/");
-    }
-  }, [router, shouldOpenApp, shouldOpenSetup]);
-
-  if (!isHydrated || shouldOpenSetup || shouldOpenApp) {
+  if (!isHydrated || shouldRedirect) {
     return (
       <View className="flex-1 items-center justify-center bg-siaga-surface">
-        <ActivityIndicator color="#d72638" size="large" />
+        <ActivityIndicator colorClassName="text-siaga-primary" size="large" />
       </View>
     );
   }

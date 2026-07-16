@@ -8,9 +8,15 @@ import {
   useState,
 } from "react";
 
+import { authClient } from "@/lib/auth-client";
+
+import {
+  useReporterProfileQuery,
+  useUpdateReporterProfileMutation,
+} from "./api";
 import { loadEmergencyProfile, saveEmergencyProfile } from "./storage";
 import type { EmergencyProfile } from "./types";
-import { EMPTY_PROFILE } from "./validation";
+import { EMPTY_PROFILE, validateEmergencyProfile } from "./validation";
 
 interface ProfileContextValue {
   hasCompletedSetup: boolean;
@@ -22,6 +28,9 @@ interface ProfileContextValue {
 const ProfileContext = createContext<ProfileContextValue | null>(null);
 
 export function ProfileProvider({ children }: PropsWithChildren) {
+  const session = authClient.useSession();
+  const remoteProfile = useReporterProfileQuery(Boolean(session.data));
+  const updateRemoteProfile = useUpdateReporterProfileMutation();
   const [storedProfile, setStoredProfile] = useState<EmergencyProfile | null>(
     null
   );
@@ -54,19 +63,40 @@ export function ProfileProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
-  const saveProfile = useCallback(async (profile: EmergencyProfile) => {
-    await saveEmergencyProfile(profile);
-    setStoredProfile(profile);
-  }, []);
+  useEffect(() => {
+    if (remoteProfile.data) {
+      setStoredProfile(remoteProfile.data);
+      saveEmergencyProfile(remoteProfile.data).catch(() => undefined);
+    }
+  }, [remoteProfile.data]);
+
+  const saveProfile = useCallback(
+    async (newProfile: EmergencyProfile) => {
+      await updateRemoteProfile.mutateAsync(newProfile);
+      await saveEmergencyProfile(newProfile);
+      setStoredProfile(newProfile);
+    },
+    [updateRemoteProfile.mutateAsync]
+  );
+
+  const profile = remoteProfile.data ?? storedProfile ?? EMPTY_PROFILE;
+  const hasCompletedSetup = validateEmergencyProfile(profile).success;
 
   const value = useMemo(
     () => ({
-      hasCompletedSetup: storedProfile !== null,
-      isHydrated,
-      profile: storedProfile ?? EMPTY_PROFILE,
+      hasCompletedSetup,
+      isHydrated: isHydrated && !(session.data && remoteProfile.isPending),
+      profile,
       saveProfile,
     }),
-    [isHydrated, saveProfile, storedProfile]
+    [
+      hasCompletedSetup,
+      isHydrated,
+      profile,
+      remoteProfile.isPending,
+      saveProfile,
+      session.data,
+    ]
   );
 
   return (

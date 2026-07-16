@@ -70,6 +70,23 @@ const reportListSelect = {
 } as const;
 
 const reportDetailInclude = {
+  acknowledgements: {
+    orderBy: { createdAt: "asc" as const },
+    select: { type: true },
+  },
+  acousticSignals: {
+    orderBy: { createdAt: "desc" as const },
+    select: {
+      code: true,
+      confidence: true,
+      createdAt: true,
+      endedAt: true,
+      id: true,
+      startedAt: true,
+      status: true,
+    },
+    take: 20,
+  },
   aiAnalyses: {
     orderBy: { createdAt: "desc" as const },
     take: 1,
@@ -77,11 +94,42 @@ const reportDetailInclude = {
   assignedOperator: {
     select: { id: true, name: true },
   },
+  callSessions: {
+    orderBy: { startedAt: "desc" as const },
+    select: { id: true, status: true },
+    take: 1,
+  },
+  cancellationRequests: {
+    orderBy: { createdAt: "desc" as const },
+    select: {
+      createdAt: true,
+      reason: true,
+      status: true,
+    },
+    take: 1,
+  },
   dispatches: {
     orderBy: { requestedAt: "desc" as const },
     select: { status: true },
     take: 1,
     where: { status: { in: ACTIVE_DISPATCH_STATUSES } },
+  },
+  messages: {
+    orderBy: { sequence: "asc" as const },
+    select: {
+      content: true,
+      createdAt: true,
+      id: true,
+      senderType: true,
+      sequence: true,
+      type: true,
+    },
+    take: 100,
+  },
+  recordings: {
+    orderBy: { createdAt: "desc" as const },
+    select: { id: true, status: true },
+    take: 1,
   },
   reporter: {
     include: { reporterProfile: true },
@@ -133,6 +181,9 @@ const findActiveDetailRow = (reportId: string) =>
 const toReportDetail = (report: ReportDetailRow): ReportDetail => {
   const [latestAnalysis] = report.aiAnalyses;
   const [activeDispatch] = report.dispatches;
+  const [callSession] = report.callSessions;
+  const [cancellationRequest] = report.cancellationRequests;
+  const [recording] = report.recordings;
   const dispatchBlocksChanges =
     activeDispatch?.status !== undefined &&
     EDIT_BLOCKED_DISPATCH_STATUS_SET.has(activeDispatch.status);
@@ -141,11 +192,27 @@ const toReportDetail = (report: ReportDetailRow): ReportDetail => {
     : null;
 
   return {
+    acknowledgements: report.acknowledgements.map(({ type }) => type),
+    acousticSignals: report.acousticSignals.map((signal) => ({
+      ...signal,
+      createdAt: toIsoString(signal.createdAt),
+      endedAt: toIsoString(signal.endedAt),
+      startedAt: toIsoString(signal.startedAt),
+    })),
     activeChannel: report.activeChannel,
     address: report.address,
     assignedOperator: report.assignedOperator,
+    callSession: callSession ?? null,
     canClose: !dispatchBlocksChanges,
+    cancellationRequest: cancellationRequest
+      ? {
+          createdAt: toIsoString(cancellationRequest.createdAt),
+          reason: cancellationRequest.reason,
+          status: cancellationRequest.status,
+        }
+      : null,
     canEdit: !dispatchBlocksChanges,
+    canTakeOver: report.assignedOperatorId === null && !dispatchBlocksChanges,
     category: report.category,
     closeBlockReason: blockReason,
     contactPhone:
@@ -158,6 +225,7 @@ const toReportDetail = (report: ReportDetailRow): ReportDetail => {
     handlingMode: report.handlingMode,
     id: report.id,
     incidentType: report.incidentType,
+    interactionMode: report.interactionMode,
     latestAnalysis: latestAnalysis
       ? {
           category: latestAnalysis.category,
@@ -171,7 +239,12 @@ const toReportDetail = (report: ReportDetailRow): ReportDetail => {
       : null,
     latitude: report.latitude,
     longitude: report.longitude,
+    messages: report.messages.map((message) => ({
+      ...message,
+      createdAt: toIsoString(message.createdAt),
+    })),
     recommendation: report.recommendation,
+    recording: recording ?? null,
     reporter: {
       email: report.reporter.email,
       emergencyContactName:
@@ -182,9 +255,14 @@ const toReportDetail = (report: ReportDetailRow): ReportDetail => {
       name: report.reporter.name,
       phoneNumber: report.reporter.reporterProfile?.phoneNumber ?? null,
     },
+    responderPreference: report.responderPreference,
     status: toActiveStatus(report.status),
     statusHistory: report.statusHistory.map(toStatusHistoryItem),
     summary: report.summary,
+    takeoverBlockReason:
+      report.assignedOperatorId === null
+        ? blockReason
+        : `Laporan sudah ditangani ${report.assignedOperator?.name ?? "operator lain"}`,
     title: report.title,
     updatedAt: toIsoString(report.updatedAt),
   };
@@ -198,6 +276,93 @@ const isPrismaConflict = (error: unknown): boolean => {
 };
 
 export class PrismaReportRepository implements ReportRepository {
+  async claimAndTakeover(
+    reportId: string,
+    operatorId: string
+  ): Promise<ReportDetail> {
+    try {
+      await prisma.$transaction(async (transaction) => {
+        const report = await transaction.emergencyReport.findFirst({
+          select: {
+            assignedOperatorId: true,
+            handlingMode: true,
+          },
+          where: {
+            id: reportId,
+            status: { in: ACTIVE_STATUSES },
+          },
+        });
+        if (!report) {
+          throw new ReportUpdateApplicationError(
+            "NOT_FOUND",
+            "Laporan aktif tidak ditemukan"
+          );
+        }
+        if (
+          report.assignedOperatorId !== null &&
+          report.assignedOperatorId !== operatorId
+        ) {
+          throw new ReportUpdateApplicationError(
+            "CONFLICT",
+            "Laporan sudah diambil alih operator lain"
+          );
+        }
+        if (report.assignedOperatorId === operatorId) {
+          return;
+        }
+
+        const claimed = await transaction.emergencyReport.updateMany({
+          data: {
+            assignedOperatorId: operatorId,
+            handlingMode: "HUMAN",
+            version: { increment: 1 },
+          },
+          where: {
+            assignedOperatorId: null,
+            id: reportId,
+            status: { in: ACTIVE_STATUSES },
+          },
+        });
+        if (claimed.count !== 1) {
+          throw new ReportUpdateApplicationError(
+            "CONFLICT",
+            "Laporan sudah diambil alih operator lain"
+          );
+        }
+        await transaction.handoffEvent.create({
+          data: {
+            fromMode: report.handlingMode,
+            operatorId,
+            reason: "Operator mengambil alih laporan",
+            reportId,
+            toMode: "HUMAN",
+          },
+        });
+      });
+    } catch (error) {
+      if (error instanceof ReportUpdateApplicationError) {
+        throw error;
+      }
+      if (isPrismaConflict(error)) {
+        throw ReportUpdateApplicationError.withCause(
+          "CONFLICT",
+          "Laporan sudah diambil alih operator lain",
+          error
+        );
+      }
+      throw error;
+    }
+
+    const detail = await this.findActiveDetail(reportId);
+    if (!detail) {
+      throw new ReportUpdateApplicationError(
+        "NOT_FOUND",
+        "Laporan aktif tidak ditemukan"
+      );
+    }
+    return detail;
+  }
+
   async listActive({
     cursor,
     limit,

@@ -1,10 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { FieldError, Input, Label, TextField } from "heroui-native";
 import { useCallback, useState } from "react";
 import { Text, View } from "react-native";
 
 import { SiagaButton } from "@/components/siaga-button";
 import { SiagaScreen } from "@/components/siaga-screen";
+import { NEUTRAL_600, SIAGA_PRIMARY } from "@/constants/colors";
 import { useProfile } from "@/features/profile/context";
 import type { EmergencyProfile } from "@/features/profile/types";
 import {
@@ -55,7 +57,7 @@ function ProfileField({
         multiline={multiline}
         onChangeText={handleChangeText}
         placeholder={placeholder}
-        placeholderTextColor="#8e8e8e"
+        placeholderTextColor={NEUTRAL_600}
         testID={`${field}-input`}
         textAlignVertical={multiline ? "top" : "center"}
         value={value}
@@ -79,10 +81,10 @@ function ProfileSection({
   title,
 }: ProfileSectionProps) {
   return (
-    <View className="gap-4 rounded-[14px] border border-siaga-border bg-white p-6">
+    <View className="gap-4 rounded-[14px] border border-siaga-border bg-siaga-panel p-6">
       <View className="gap-1 border-siaga-border border-b pb-3">
         <View className="flex-row items-center gap-2">
-          <Ionicons color="#870000" name={icon} size={20} />
+          <Ionicons color={SIAGA_PRIMARY} name={icon} size={20} />
           <Text className="font-semibold text-[22px] text-siaga-body">
             {title}
           </Text>
@@ -103,6 +105,7 @@ interface ProfileScreenProps {
 }
 
 export function ProfileScreen({ isOnboarding = false }: ProfileScreenProps) {
+  const router = useRouter();
   const { profile: savedProfile, saveProfile } = useProfile();
   const [draftProfile, setDraftProfile] = useState<
     EmergencyProfile | undefined
@@ -146,6 +149,9 @@ export function ProfileScreen({ isOnboarding = false }: ProfileScreenProps) {
       setDraftProfile(validation.profile);
       setFieldErrors({});
       setIsSaved(true);
+      if (isOnboarding) {
+        router.replace("/");
+      }
     } catch {
       setSaveError(
         "Profil belum dapat disimpan. Periksa perangkat lalu coba lagi."
@@ -154,7 +160,7 @@ export function ProfileScreen({ isOnboarding = false }: ProfileScreenProps) {
     } finally {
       setIsSaving(false);
     }
-  }, [profile, saveProfile]);
+  }, [isOnboarding, profile, router, saveProfile]);
 
   return (
     <SiagaScreen
@@ -209,15 +215,6 @@ export function ProfileScreen({ isOnboarding = false }: ProfileScreenProps) {
           placeholder="Alamat lengkap"
           required
           value={profile.address}
-        />
-        <ProfileField
-          error={fieldErrors.language}
-          field="language"
-          label="Bahasa Utama"
-          onChange={updateProfile}
-          placeholder="Contoh: Bahasa Indonesia"
-          required
-          value={profile.language}
         />
       </ProfileSection>
 
@@ -279,6 +276,14 @@ export function ProfileScreen({ isOnboarding = false }: ProfileScreenProps) {
             value={profile.contactName}
           />
           <ProfileField
+            field="phoneNumber"
+            keyboardType="phone-pad"
+            label="Nomor Telepon Anda (Opsional)"
+            onChange={updateProfile}
+            placeholder="08xx..."
+            value={profile.phoneNumber}
+          />
+          <ProfileField
             error={fieldErrors.contactPhone}
             field="contactPhone"
             keyboardType="phone-pad"
@@ -292,8 +297,8 @@ export function ProfileScreen({ isOnboarding = false }: ProfileScreenProps) {
       </ProfileSection>
 
       <View className="flex-row items-center gap-3 rounded-[14px] border border-siaga-border bg-siaga-soft p-4">
-        <Ionicons color="#870000" name="information-circle" size={21} />
-        <Text className="flex-1 text-[#870000] text-[13px] leading-5">
+        <Ionicons color={SIAGA_PRIMARY} name="information-circle" size={21} />
+        <Text className="flex-1 text-[13px] text-siaga-primary leading-5">
           Data ini hanya dikirim saat Anda menekan SOS.
         </Text>
       </View>

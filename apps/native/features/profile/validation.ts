@@ -18,8 +18,8 @@ export const EMPTY_PROFILE: EmergencyProfile = {
   contactName: "",
   contactPhone: "",
   fullName: "",
-  language: "",
   medications: "",
+  phoneNumber: "",
   specialNeeds: "",
 };
 
@@ -43,13 +43,13 @@ const trimProfile = (profile: EmergencyProfile): EmergencyProfile => ({
   address: profile.address.trim(),
   age: profile.age.trim(),
   allergies: profile.allergies.trim(),
-  bloodType: profile.bloodType.trim(),
+  bloodType: profile.bloodType,
   conditions: profile.conditions.trim(),
   contactName: profile.contactName.trim(),
   contactPhone: profile.contactPhone.trim(),
   fullName: profile.fullName.trim(),
-  language: profile.language.trim(),
   medications: profile.medications.trim(),
+  phoneNumber: profile.phoneNumber.trim(),
   specialNeeds: profile.specialNeeds.trim(),
 });
 
@@ -72,10 +72,6 @@ export const validateEmergencyProfile = (
 
   if (profile.address.length < MINIMUM_ADDRESS_LENGTH) {
     errors.address = "Masukkan alamat rumah yang lengkap.";
-  }
-
-  if (profile.language.length < MINIMUM_NAME_LENGTH) {
-    errors.language = "Masukkan bahasa utama yang digunakan.";
   }
 
   if (profile.contactName.length < MINIMUM_NAME_LENGTH) {

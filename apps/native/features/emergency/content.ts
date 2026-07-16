@@ -27,7 +27,7 @@ export const REPORT_MODES: ReportModeOption[] = [
     title: "Chat dengan teks",
   },
   {
-    body: "Mikrofon tetap mati, untuk KDRT atau situasi ketika suara berbahaya.",
+    body: "Mikrofon aktif untuk mendengar lingkungan, tetapi perangkat tetap hening.",
     icon: "volume-mute-outline",
     id: "silent",
     title: "Mode senyap",

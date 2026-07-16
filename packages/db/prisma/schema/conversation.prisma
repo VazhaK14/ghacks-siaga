@@ -12,6 +12,39 @@ enum CallEndReason {
   TIMEOUT
 }
 
+enum MessageType {
+  REPORTER_TEXT
+  OPERATOR_TEXT
+  AI_TEXT
+  TRANSCRIPT_FINAL
+  SYSTEM
+}
+
+enum CallSessionStatus {
+  CREATED
+  CONNECTING
+  ACTIVE
+  ENDING
+  ENDED
+  FAILED
+}
+
+enum AcousticSignalStatus {
+  INFERRED
+  CONFIRMED
+  REJECTED
+}
+
+enum RecordingStatus {
+  NOT_STARTED
+  RECORDING
+  FINALIZING
+  UPLOADING
+  READY
+  FAILED_FINAL
+  DELETED
+}
+
 model Message {
   id       String          @id @default(cuid())
   reportId String
@@ -21,16 +54,21 @@ model Message {
   senderUserId String?
   senderUser   User?             @relation("MessageSenderUser", fields: [senderUserId], references: [id])
 
-  channel              CommunicationChannel
-  content              String
-  audioUrl             String?
-  transcriptConfidence Float?
+  channel                   CommunicationChannel
+  type                      MessageType          @default(SYSTEM)
+  content                   String
+  audioUrl                  String?
+  transcriptConfidence      Float?
+  sourceParticipantIdentity String?
+  idempotencyKey            String?
 
   sequence  Int
   createdAt DateTime @default(now())
 
   triggeredAnalyses AIAnalysisSnapshot[]
 
+  @@unique([reportId, sequence])
+  @@unique([reportId, idempotencyKey])
   @@index([reportId, sequence])
   @@map("message")
 }
@@ -40,14 +78,91 @@ model CallSession {
   reportId String
   report   EmergencyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
 
-  provider        String
-  externalCallId  String?
-  startedAt       DateTime       @default(now())
-  endedAt         DateTime?
-  endReason       CallEndReason?
-  durationSeconds Int?
-  recordingUrl    String?
+  provider              String            @default("PENDING")
+  externalCallId        String?
+  livekitRoomName       String?           @unique
+  status                CallSessionStatus @default(CREATED)
+  activeInteractionMode InteractionMode?
+  startedAt             DateTime          @default(now())
+  endedAt               DateTime?
+  endReason             CallEndReason?
+  durationSeconds       Int?
+  recordingUrl          String?
+
+  modeEvents      ModeEvent[]
+  acousticSignals AcousticSignal[]
+  recording       RecordingAsset?
 
   @@index([reportId])
   @@map("call_session")
+}
+
+model ModeEvent {
+  id            String          @id @default(cuid())
+  reportId      String
+  report        EmergencyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  callSessionId String
+  callSession   CallSession     @relation(fields: [callSessionId], references: [id], onDelete: Cascade)
+
+  fromMode  InteractionMode?
+  toMode    InteractionMode
+  actorType MessageSenderType
+  actorId   String?
+  createdAt DateTime          @default(now())
+
+  @@index([reportId, createdAt])
+  @@index([callSessionId])
+  @@map("mode_event")
+}
+
+model AcousticSignal {
+  id            String          @id @default(cuid())
+  reportId      String
+  report        EmergencyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  callSessionId String
+  callSession   CallSession     @relation(fields: [callSessionId], references: [id], onDelete: Cascade)
+
+  code                      String
+  confidence                Float
+  status                    AcousticSignalStatus @default(INFERRED)
+  startedAt                 DateTime
+  endedAt                   DateTime
+  modelId                   String
+  modelVersion              String?
+  sourceParticipantIdentity String?
+  createdAt                 DateTime             @default(now())
+
+  @@index([reportId, createdAt])
+  @@index([callSessionId])
+  @@map("acoustic_signal")
+}
+
+model RecordingAsset {
+  id            String          @id @default(cuid())
+  reportId      String
+  report        EmergencyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  callSessionId String          @unique
+  callSession   CallSession     @relation(fields: [callSessionId], references: [id], onDelete: Cascade)
+
+  status             RecordingStatus @default(NOT_STARTED)
+  cloudinaryAssetId  String?
+  cloudinaryPublicId String?
+  resourceType       String?
+  deliveryType       String?
+  format             String?
+  bytes              Int?
+  durationSeconds    Int?
+  checksum           String?
+  lastError          String?
+  startedAt          DateTime?
+  finalizedAt        DateTime?
+  uploadedAt         DateTime?
+  deletedAt          DateTime?
+  deletedById        String?
+  deleteReason       String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([reportId])
+  @@map("recording_asset")
 }

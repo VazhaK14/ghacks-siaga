@@ -56,17 +56,17 @@ model DispatchRequest {
   structuredReportSnapshot Json
   notes                    String?
 
-  requestedAt    DateTime  @default(now())
-  acknowledgedAt DateTime?
-  enRouteAt      DateTime?
+  requestedAt        DateTime  @default(now())
+  acknowledgedAt     DateTime?
+  enRouteAt          DateTime?
   estimatedArrivalAt DateTime?
-  arrivedAt      DateTime?
-  returnStartedAt DateTime?
-  estimatedReturnAt DateTime?
-  returnedAt     DateTime?
-  completedAt    DateTime?
-  cancelledAt    DateTime?
-  unitCode       String?
+  arrivedAt          DateTime?
+  returnStartedAt    DateTime?
+  estimatedReturnAt  DateTime?
+  returnedAt         DateTime?
+  completedAt        DateTime?
+  cancelledAt        DateTime?
+  unitCode           String?
 
   @@index([reportId])
   @@index([agencyId])

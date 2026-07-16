@@ -10,6 +10,20 @@ import {
 } from "react-native";
 
 import { ReferenceCanvas } from "@/components/reference-canvas";
+import {
+  NEUTRAL_1000,
+  SIAGA_BODY,
+  SIAGA_BORDER,
+  SIAGA_BORDER_SOFT,
+  SIAGA_MUTED_STRONG,
+  SIAGA_PANEL,
+  SIAGA_PRIMARY,
+  SIAGA_PRIMARY_SHADOW,
+  SIAGA_PRIMARY_SOFT,
+  SIAGA_PRIMARY_SOFT_STRONG,
+  SIAGA_SOFT,
+  WHITE,
+} from "@/constants/colors";
 import { EMERGENCY_CATEGORIES } from "@/features/emergency/content";
 import { useIncident } from "@/features/emergency/context";
 import type { EmergencyCategory } from "@/features/emergency/types";
@@ -139,7 +153,7 @@ export function SosScreen() {
         onPress={handleLocationPress}
         style={styles.locationCard}
       >
-        <Ionicons color="#a90010" name="locate-outline" size={22} />
+        <Ionicons color={SIAGA_PRIMARY} name="locate-outline" size={22} />
         <View style={styles.locationCopy}>
           <Text style={styles.locationTitle}>{locationCopy.title}</Text>
           <Text numberOfLines={2} style={styles.locationBody}>
@@ -147,9 +161,9 @@ export function SosScreen() {
           </Text>
         </View>
         {locationStatus === "locating" ? (
-          <ActivityIndicator color="#a90010" size="small" />
+          <ActivityIndicator color={SIAGA_PRIMARY} size="small" />
         ) : (
-          <Ionicons color="#a90010" name="refresh" size={18} />
+          <Ionicons color={SIAGA_PRIMARY} name="refresh" size={18} />
         )}
       </Pressable>
 
@@ -198,12 +212,12 @@ const styles = StyleSheet.create({
     width: 104,
   },
   categoryDefault: {
-    backgroundColor: "#ffffff",
-    borderColor: "#e9e3df",
+    backgroundColor: SIAGA_PANEL,
+    borderColor: SIAGA_BORDER_SOFT,
     borderWidth: 1,
   },
   categoryHint: {
-    color: "#776f72",
+    color: SIAGA_MUTED_STRONG,
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 10,
     left: 28,
@@ -212,19 +226,19 @@ const styles = StyleSheet.create({
     top: 584,
   },
   categoryLabel: {
-    color: "#241f20",
+    color: SIAGA_BODY,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 9,
     lineHeight: 12,
   },
   categoryLabelSelected: {
-    color: "#ffffff",
+    color: WHITE,
   },
   categorySelected: {
-    backgroundColor: "#d72638",
+    backgroundColor: SIAGA_PRIMARY,
   },
   categoryTitle: {
-    color: "#241f20",
+    color: SIAGA_BODY,
     fontFamily: "PlusJakartaSans_800ExtraBold",
     fontSize: 15,
     left: 28,
@@ -233,7 +247,7 @@ const styles = StyleSheet.create({
     top: 560,
   },
   locationBody: {
-    color: "#333333",
+    color: NEUTRAL_1000,
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 12,
     letterSpacing: 0.24,
@@ -241,8 +255,8 @@ const styles = StyleSheet.create({
   },
   locationCard: {
     alignItems: "center",
-    backgroundColor: "#fff0f1",
-    borderColor: "#ded7d3",
+    backgroundColor: SIAGA_SOFT,
+    borderColor: SIAGA_BORDER,
     borderCurve: "continuous",
     borderRadius: 14,
     borderWidth: 1,
@@ -260,14 +274,14 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   locationTitle: {
-    color: "#333333",
+    color: NEUTRAL_1000,
     fontFamily: "PlusJakartaSans_800ExtraBold",
     fontSize: 16,
     letterSpacing: 0.16,
     lineHeight: 20,
   },
   prompt: {
-    color: "#241f20",
+    color: SIAGA_BODY,
     fontFamily: "PlusJakartaSans_800ExtraBold",
     fontSize: 21,
     left: 24,
@@ -278,7 +292,7 @@ const styles = StyleSheet.create({
     width: 342,
   },
   promptHint: {
-    color: "#776f72",
+    color: SIAGA_MUTED_STRONG,
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 10,
     left: 24,
@@ -290,17 +304,17 @@ const styles = StyleSheet.create({
   },
   sosAction: {
     alignItems: "center",
-    backgroundColor: "#d72638",
+    backgroundColor: SIAGA_PRIMARY,
     borderCurve: "continuous",
     borderRadius: 79,
-    boxShadow: "0 12px 18px rgba(126, 14, 26, 0.18)",
+    boxShadow: `0 12px 18px ${SIAGA_PRIMARY_SHADOW}`,
     height: 158,
     justifyContent: "center",
     width: 158,
   },
   sosHalo: {
     alignItems: "center",
-    backgroundColor: "#f9e7e8",
+    backgroundColor: SIAGA_PRIMARY_SOFT,
     borderCurve: "continuous",
     borderRadius: 115,
     height: 230,
@@ -311,14 +325,14 @@ const styles = StyleSheet.create({
     width: 230,
   },
   sosLabel: {
-    color: "#ffffff",
+    color: WHITE,
     fontFamily: "PlusJakartaSans_800ExtraBold",
     fontSize: 42,
     lineHeight: 57,
   },
   sosRing: {
     alignItems: "center",
-    backgroundColor: "#f5d1d5",
+    backgroundColor: SIAGA_PRIMARY_SOFT_STRONG,
     borderCurve: "continuous",
     borderRadius: 97,
     height: 194,

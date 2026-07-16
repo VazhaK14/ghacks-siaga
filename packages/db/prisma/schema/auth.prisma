@@ -30,14 +30,17 @@ model User {
   sessions      Session[]
   accounts      Account[]
 
-  reporterProfile   ReporterProfile?
-  reportsAsReporter EmergencyReport[] @relation("ReportsAsReporter")
-  reportsAsOperator EmergencyReport[] @relation("ReportsAsOperator")
-  handoffEvents     HandoffEvent[]    @relation("HandoffOperator")
-  sentMessages      Message[]         @relation("MessageSenderUser")
-  aiFeedback        AIFeedback[]      @relation("AIFeedbackOperator")
-  dispatchRequests  DispatchRequest[] @relation("DispatchedByOperator")
-  closedReports     EmergencyReport[] @relation("ReportsClosedByOperator")
+  reporterProfile        ReporterProfile?
+  reportsAsReporter      EmergencyReport[]       @relation("ReportsAsReporter")
+  reportsAsOperator      EmergencyReport[]       @relation("ReportsAsOperator")
+  handoffEvents          HandoffEvent[]          @relation("HandoffOperator")
+  sentMessages           Message[]               @relation("MessageSenderUser")
+  aiFeedback             AIFeedback[]            @relation("AIFeedbackOperator")
+  dispatchRequests       DispatchRequest[]       @relation("DispatchedByOperator")
+  closedReports          EmergencyReport[]       @relation("ReportsClosedByOperator")
+  cancellationRequests   CancellationRequest[]   @relation("CancellationRequestedBy")
+  reviewedCancellations  CancellationRequest[]   @relation("CancellationReviewedBy")
+  reportAcknowledgements ReportAcknowledgement[] @relation("ReportAcknowledgementReporter")
 
   @@unique([email])
   @@map("user")
@@ -48,6 +51,7 @@ model ReporterProfile {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  age                   Int?
   phoneNumber           String?
   bloodType             BloodType?
   emergencyContactName  String?
@@ -55,6 +59,10 @@ model ReporterProfile {
   homeAddress           String?
   homeLatitude          Float?
   homeLongitude         Float?
+  allergies             String?
+  conditions            String?
+  medications           String?
+  specialNeeds          String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -63,15 +71,15 @@ model ReporterProfile {
 }
 
 model Session {
-  id        String   @id
-  expiresAt DateTime
-  token     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  ipAddress String?
-  userAgent String?
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String   @id
+  expiresAt      DateTime
+  token          String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  ipAddress      String?
+  userAgent      String?
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   impersonatedBy String?
 
   @@unique([token])

@@ -1,5 +1,5 @@
-import { SosScreen } from "@/features/emergency/components/sos-screen";
+import { HomeScreen } from "@/features/home/components/home-screen";
 
-export default function SosRoute() {
-  return <SosScreen />;
+export default function HomeRoute() {
+  return <HomeScreen />;
 }

@@ -13,6 +13,8 @@
       "expo-splash-screen",
       "expo-image",
       "expo-secure-store",
+      "@livekit/react-native-expo-plugin",
+      "@config-plugins/react-native-webrtc",
       [
         "expo-location",
         {

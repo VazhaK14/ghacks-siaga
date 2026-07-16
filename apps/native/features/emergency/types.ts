@@ -28,9 +28,11 @@ export interface IncidentLocation {
 export interface IncidentState {
   category: EmergencyCategory | null;
   connectionTarget: ConnectionTarget;
+  idempotencyKey: string | null;
   location: IncidentLocation | null;
   mode: ReportMode | null;
   phase: IncidentPhase;
+  reportId: string | null;
 }
 
 export interface IncidentContextValue extends IncidentState {
@@ -42,6 +44,7 @@ export interface IncidentContextValue extends IncidentState {
   setLocation: (location: IncidentLocation) => void;
   setMode: (mode: ReportMode) => void;
   setPhase: (phase: IncidentPhase) => void;
+  setReportId: (reportId: string) => void;
 }
 
 export interface ReportModeOption {

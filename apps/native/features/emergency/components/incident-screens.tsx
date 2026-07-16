@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import arrivalMap from "@/assets/images/arrival-map.png";
@@ -10,11 +10,61 @@ import dispatchMap from "@/assets/images/dispatch-map.png";
 import { ReferenceCanvas } from "@/components/reference-canvas";
 import { SiagaButton } from "@/components/siaga-button";
 import {
-  INITIAL_CHAT,
-  SAFETY_INSTRUCTIONS,
-} from "@/features/emergency/content";
+  NEUTRAL_600,
+  SIAGA_BODY,
+  SIAGA_BORDER,
+  SIAGA_CALL_BG,
+  SIAGA_INK,
+  SIAGA_MUTED,
+  SIAGA_MUTED_STRONG,
+  SIAGA_PANEL,
+  SIAGA_PRIMARY,
+  SIAGA_PRIMARY_DARK,
+  SIAGA_PRIORITY,
+  SIAGA_SOFT,
+  SIAGA_SUCCESS,
+  SIAGA_SUCCESS_BORDER,
+  SIAGA_SUCCESS_SOFT,
+  WHITE,
+} from "@/constants/colors";
+import {
+  useAcknowledgeReportMutation,
+  useAppendReporterTextMutation,
+  useCreateReporterReportMutation,
+  useEndReporterSessionMutation,
+  useReporterReportQuery,
+  useRequestCancellationMutation,
+  useSwitchReporterModeMutation,
+} from "@/features/emergency/api";
+import { LiveAudioRoom } from "@/features/emergency/components/live-audio-room";
+import { SAFETY_INSTRUCTIONS } from "@/features/emergency/content";
 import { useIncident } from "@/features/emergency/context";
-import type { ChatMessage } from "@/features/emergency/types";
+import type {
+  ChatMessage,
+  EmergencyCategory,
+  ReportMode,
+} from "@/features/emergency/types";
+import { useLiveLocationReporting } from "@/features/emergency/use-live-location-reporting";
+
+const INCIDENT_TYPE_BY_CATEGORY: Record<
+  EmergencyCategory,
+  "CRIME" | "FIRE" | "MEDICAL" | "TRAFFIC_ACCIDENT" | "NATURAL_DISASTER"
+> = {
+  Bencana: "NATURAL_DISASTER",
+  Kebakaran: "FIRE",
+  Kecelakaan: "TRAFFIC_ACCIDENT",
+  Kriminal: "CRIME",
+  Medis: "MEDICAL",
+};
+
+const INTERACTION_MODE_BY_REPORT_MODE: Record<
+  ReportMode,
+  "VOICE" | "TEXT" | "SILENT"
+> = {
+  silent: "SILENT",
+  text: "TEXT",
+  voice: "VOICE",
+};
 
 const WAVE_BARS = [
   { height: 28, id: "a" },
@@ -55,7 +105,11 @@ function PulseCore({ isOperator }: { isOperator: boolean }) {
         <View style={styles.pulseInner}>
           <View style={styles.pulseCore}>
             {isOperator ? (
-              <Ionicons color="#d72638" name="headset-outline" size={44} />
+              <Ionicons
+                color={SIAGA_PRIMARY}
+                name="headset-outline"
+                size={44}
+              />
             ) : (
               <Text style={styles.aiMark}>✦</Text>
             )}
@@ -78,24 +132,94 @@ function Waveform() {
 
 export function ConnectingScreen() {
   const router = useRouter();
-  const { cancelIncident, connectionTarget, mode, setPhase } = useIncident();
+  const {
+    cancelIncident,
+    category,
+    connectionTarget,
+    idempotencyKey,
+    location,
+    mode,
+    reportId,
+    setPhase,
+    setReportId,
+  } = useIncident();
+  const createReport = useCreateReporterReportMutation();
+  const cancellation = useRequestCancellationMutation();
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const isOperator = connectionTarget === "operator";
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      setPhase("active");
-      router.replace(mode === "voice" ? "/voice-session" : "/chat");
-    }, 2600);
-    return () => clearTimeout(timeout);
-  }, [mode, router, setPhase]);
+    if (!(idempotencyKey && mode) || reportId || createReport.isPending) {
+      return;
+    }
+    createReport
+      .mutateAsync({
+        address: location?.address,
+        idempotencyKey,
+        incidentType: category
+          ? INCIDENT_TYPE_BY_CATEGORY[category]
+          : undefined,
+        interactionMode: INTERACTION_MODE_BY_REPORT_MODE[mode],
+        latitude: location?.latitude,
+        longitude: location?.longitude,
+        responderPreference: isOperator ? "OPERATOR" : "AI",
+      })
+      .then((report) => {
+        setReportId(report.id);
+        setPhase("active");
+        if (mode === "voice") {
+          router.replace("/voice-session");
+          return;
+        }
+        if (mode === "silent") {
+          router.replace("/silent-session");
+          return;
+        }
+        router.replace("/chat");
+      })
+      .catch((error: unknown) => {
+        setConnectionError(
+          error instanceof Error
+            ? error.message
+            : "Laporan belum berhasil dibuat. Coba lagi."
+        );
+      });
+  }, [
+    category,
+    createReport,
+    idempotencyKey,
+    isOperator,
+    location,
+    mode,
+    reportId,
+    router,
+    setPhase,
+    setReportId,
+  ]);
 
-  const handleCancel = useCallback(() => {
+  const handleCancel = useCallback(async () => {
+    if (reportId) {
+      try {
+        await cancellation.mutateAsync({
+          reason: "Pelapor membatalkan saat proses koneksi",
+          reportId,
+        });
+      } catch {
+        setConnectionError(
+          "Permintaan pembatalan belum terkirim. Laporan tetap aktif."
+        );
+        return;
+      }
+    }
     cancelIncident();
     router.replace("/");
-  }, [cancelIncident, router]);
+  }, [cancelIncident, cancellation, reportId, router]);
 
   return (
-    <ReferenceCanvas backgroundColor="#850817" testID="connecting-screen">
+    <ReferenceCanvas
+      backgroundColor={SIAGA_PRIMARY_DARK}
+      testID="connecting-screen"
+    >
       <StatusBar style="light" />
       <PulseCore isOperator={isOperator} />
       <Text style={styles.connectingTitle}>
@@ -103,6 +227,9 @@ export function ConnectingScreen() {
           ? "Menghubungkan ke operator..."
           : "Menghubungkan ke\nSIAGA AI..."}
       </Text>
+      {connectionError ? (
+        <Text style={styles.connectionError}>{connectionError}</Text>
+      ) : null}
       <Pressable
         accessibilityRole="button"
         onPress={handleCancel}
@@ -116,9 +243,13 @@ export function ConnectingScreen() {
 
 export function VoiceSessionScreen() {
   const router = useRouter();
-  const { connectionTarget, setPhase } = useIncident();
-  const [seconds, setSeconds] = useState(18);
+  const { connectionTarget, reportId } = useIncident();
+  const reportQuery = useReporterReportQuery(reportId);
+  const endSession = useEndReporterSessionMutation();
+  const switchMode = useSwitchReporterModeMutation();
+  const [seconds, setSeconds] = useState(0);
   const isOperator = connectionTarget === "operator";
+  useLiveLocationReporting(reportId);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -127,21 +258,50 @@ export function VoiceSessionScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleEndCall = useCallback(() => {
-    setPhase("dispatched");
+  const handleEndCall = useCallback(async () => {
+    if (!reportId) {
+      router.replace("/");
+      return;
+    }
+    await endSession.mutateAsync({ reportId });
     router.replace("/dispatch");
-  }, [router, setPhase]);
+  }, [endSession, reportId, router]);
 
-  return (
-    <ReferenceCanvas backgroundColor="#12090b" testID="voice-session-screen">
+  const handleUseText = useCallback(async () => {
+    if (!reportId) {
+      return;
+    }
+    await switchMode.mutateAsync({
+      interactionMode: "TEXT",
+      reportId,
+    });
+    router.replace("/chat");
+  }, [reportId, router, switchMode]);
+
+  const latestTranscript = [...(reportQuery.data?.messages ?? [])]
+    .reverse()
+    .find(
+      (message) =>
+        message.type === "TRANSCRIPT_FINAL" || message.senderType === "REPORTER"
+    );
+
+  const content = (
+    <ReferenceCanvas
+      backgroundColor={SIAGA_CALL_BG}
+      testID="voice-session-screen"
+    >
       <StatusBar style="light" />
       <Text style={styles.timer}>{formatDuration(seconds)}</Text>
       {isOperator ? null : (
         <View style={styles.emergencyPrompt}>
-          <Text style={styles.promptEyebrow}>PERTANYAAN PERTAMA</Text>
-          <Text style={styles.promptQuestion}>Apa emergency kamu?</Text>
+          <Text style={styles.promptEyebrow}>SIAGA AKTIF</Text>
+          <Text style={styles.promptQuestion}>
+            {reportQuery.data?.assignedOperator
+              ? "Operator sudah mengambil alih"
+              : "Ceritakan keadaan daruratnya"}
+          </Text>
           <Text style={styles.promptInstruction}>
-            Bicara senatural mungkin.
+            Mikrofon dikirim melalui ruang laporan privat.
           </Text>
         </View>
       )}
@@ -151,26 +311,40 @@ export function VoiceSessionScreen() {
           isOperator ? styles.operatorListeningState : null,
         ]}
       >
-        {isOperator
-          ? "KAMU SEDANG BERBICARA DENGAN OPERATOR"
-          : "SIAGA AI SEDANG MENDENGARKAN"}
+        {reportQuery.data?.assignedOperator
+          ? `DITANGANI ${reportQuery.data.assignedOperator.name.toUpperCase()}`
+          : "SIAGA SEDANG MENDENGARKAN"}
       </Text>
       <Waveform />
-      {isOperator ? null : (
-        <View style={styles.transcriptCard}>
-          <Text style={styles.transcriptLabel}>TRANSKRIP LANGSUNG</Text>
-          <Text style={styles.transcriptBody}>
-            “Ada orang masuk rumah saya. Dia bawa pisau...”
-          </Text>
-        </View>
-      )}
+      <View style={styles.transcriptCard}>
+        <Text style={styles.transcriptLabel}>TRANSKRIP FINAL TERAKHIR</Text>
+        <Text style={styles.transcriptBody}>
+          {latestTranscript?.content ??
+            "Transkrip akan muncul setelah layanan suara mengirim hasil final."}
+        </Text>
+      </View>
+      <View style={styles.voiceTextAction}>
+        <SiagaButton onPress={handleUseText} tone="outline">
+          Pindah ke chat
+        </SiagaButton>
+      </View>
       <View style={styles.endCallAction}>
-        <SiagaButton className="h-[52px]" onPress={handleEndCall}>
-          Akhiri panggilan
+        <SiagaButton
+          className="h-[52px]"
+          isDisabled={endSession.isPending}
+          onPress={handleEndCall}
+        >
+          Akhiri komunikasi
         </SiagaButton>
       </View>
     </ReferenceCanvas>
   );
+
+  if (!reportId) {
+    return content;
+  }
+
+  return <LiveAudioRoom reportId={reportId}>{content}</LiveAudioRoom>;
 }
 
 interface MessageBubbleProps {
@@ -203,26 +377,60 @@ function MessageBubble({ index, message }: MessageBubbleProps) {
 
 export function ChatScreen() {
   const router = useRouter();
-  const { setPhase } = useIncident();
+  const { reportId } = useIncident();
+  const reportQuery = useReporterReportQuery(reportId);
+  const appendText = useAppendReporterTextMutation();
+  const endSession = useEndReporterSessionMutation();
+  const switchMode = useSwitchReporterModeMutation();
   const [draft, setDraft] = useState("");
-  const [messages, setMessages] = useState(INITIAL_CHAT);
+  useLiveLocationReporting(reportId);
+  const messages = useMemo<ChatMessage[]>(
+    () =>
+      (reportQuery.data?.messages ?? []).slice(-5).map((message) => ({
+        id: message.id,
+        message: message.content,
+        sender: message.senderType === "REPORTER" ? "KAMU" : "SIAGA",
+      })),
+    [reportQuery.data?.messages]
+  );
 
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback(async () => {
     const nextMessage = draft.trim();
-    if (!nextMessage) {
+    if (!(nextMessage && reportId)) {
       return;
     }
-    setMessages((current) => [
-      ...current,
-      { id: `message-${current.length}`, message: nextMessage, sender: "KAMU" },
-    ]);
     setDraft("");
-  }, [draft]);
+    await appendText.mutateAsync({
+      content: nextMessage,
+      idempotencyKey: `message-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      reportId,
+    });
+  }, [appendText, draft, reportId]);
 
-  const handleDispatch = useCallback(() => {
-    setPhase("dispatched");
+  const handleEndSession = useCallback(async () => {
+    if (reportId) {
+      await endSession.mutateAsync({ reportId });
+    }
     router.replace("/dispatch");
-  }, [router, setPhase]);
+  }, [endSession, reportId, router]);
+
+  const handleUseVoice = useCallback(async () => {
+    if (!reportId) {
+      return;
+    }
+    await switchMode.mutateAsync({
+      interactionMode: "VOICE",
+      reportId,
+    });
+    router.replace("/voice-session");
+  }, [reportId, router, switchMode]);
+
+  let chatStatusText = "Laporan aktif";
+  if (reportQuery.isError) {
+    chatStatusText = "Koneksi terganggu";
+  } else if (reportQuery.data?.assignedOperator) {
+    chatStatusText = `Ditangani ${reportQuery.data.assignedOperator.name}`;
+  }
 
   return (
     <ReferenceCanvas testID="chat-screen">
@@ -234,7 +442,7 @@ export function ChatScreen() {
           <Text style={styles.chatTitle}>SIAGA</Text>
           <View style={styles.chatStatusRow}>
             <View style={styles.onlineDot} />
-            <Text style={styles.chatStatus}>Terhubung privat</Text>
+            <Text style={styles.chatStatus}>{chatStatusText}</Text>
           </View>
         </View>
       </View>
@@ -247,7 +455,7 @@ export function ChatScreen() {
           onChangeText={setDraft}
           onSubmitEditing={handleSend}
           placeholder="Tulis perubahan situasi..."
-          placeholderTextColor="#8e8e8e"
+          placeholderTextColor={NEUTRAL_600}
           returnKeyType="send"
           style={styles.chatInput}
           value={draft}
@@ -255,11 +463,26 @@ export function ChatScreen() {
         <Pressable
           accessibilityLabel="Kirim pesan"
           accessibilityRole="button"
-          onLongPress={handleDispatch}
           onPress={handleSend}
           style={styles.sendAction}
         >
-          <Ionicons color="#ffffff" name="arrow-up" size={22} />
+          <Ionicons color={WHITE} name="arrow-up" size={22} />
+        </Pressable>
+      </View>
+      <View style={styles.chatModeActions}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={handleUseVoice}
+          style={styles.secondaryChatAction}
+        >
+          <Text style={styles.secondaryChatActionText}>Gunakan suara</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={handleEndSession}
+          style={styles.secondaryChatAction}
+        >
+          <Text style={styles.secondaryChatActionText}>Akhiri komunikasi</Text>
         </Pressable>
       </View>
     </ReferenceCanvas>
@@ -268,12 +491,38 @@ export function ChatScreen() {
 
 export function DispatchScreen() {
   const router = useRouter();
-  const { setPhase } = useIncident();
+  const { reportId } = useIncident();
+  const reportQuery = useReporterReportQuery(reportId);
+  const acknowledgement = useAcknowledgeReportMutation();
+  const report = reportQuery.data;
+  const dispatch = report?.latestDispatch;
+  const agencyName = dispatch?.agencyName ?? "Tim bantuan";
+  const unitCode = dispatch?.unitCode ?? "belum ditetapkan";
+  const isHelpVisible = report?.acknowledgements.includes("HELP_VISIBLE");
 
-  const handleArrival = useCallback(() => {
-    setPhase("arrived");
-    router.replace("/arrival");
-  }, [router, setPhase]);
+  useEffect(() => {
+    if (report?.status === "HELP_ARRIVED") {
+      router.replace("/arrival");
+      return;
+    }
+    if (
+      report?.status === "RESOLVED" ||
+      report?.status === "CLOSED" ||
+      report?.status === "CANCELLED"
+    ) {
+      router.replace("/complete");
+    }
+  }, [report?.status, router]);
+
+  const handleArrival = useCallback(async () => {
+    if (!reportId) {
+      return;
+    }
+    await acknowledgement.mutateAsync({
+      reportId,
+      type: "HELP_VISIBLE",
+    });
+  }, [acknowledgement, reportId]);
 
   const handleOpenChat = useCallback(() => {
     router.push("/chat");
@@ -283,11 +532,16 @@ export function DispatchScreen() {
     <ReferenceCanvas testID="dispatch-screen">
       <Text style={styles.flowTitle}>Bantuan sedang dikirim</Text>
       <Text style={styles.dispatchSubtitle}>
-        Polisi 07 sedang menuju lokasi Anda.
+        {dispatch
+          ? `${agencyName} · unit ${unitCode}`
+          : "Laporan aktif dan menunggu konfirmasi dispatch operator."}
       </Text>
       <View style={styles.priorityAlert}>
-        <Text style={styles.priorityEyebrow}>PRIORITAS TINGGI</Text>
-        <Text style={styles.priorityBody}>Jangan keluar dari kamar.</Text>
+        <Text style={styles.priorityEyebrow}>{report?.status ?? "AKTIF"}</Text>
+        <Text style={styles.priorityBody}>
+          {report?.recommendation ??
+            "Tetap berada di tempat aman dan kirim perubahan situasi melalui chat."}
+        </Text>
       </View>
       {SAFETY_INSTRUCTIONS.map((instruction, index) => (
         <View
@@ -307,7 +561,16 @@ export function DispatchScreen() {
           style={styles.mapImage}
         />
         <View style={styles.etaBadge}>
-          <Text style={styles.etaText}>ETA: 4 menit</Text>
+          <Text style={styles.etaText}>
+            {dispatch?.estimatedArrivalAt
+              ? `Estimasi ${new Date(
+                  dispatch.estimatedArrivalAt
+                ).toLocaleTimeString("id-ID", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}`
+              : "ETA belum tersedia"}
+          </Text>
         </View>
       </View>
       <Pressable
@@ -316,11 +579,16 @@ export function DispatchScreen() {
         onPress={handleOpenChat}
         style={styles.chatShortcut}
       >
-        <Ionicons color="#d72638" name="chatbox-outline" size={30} />
+        <Ionicons color={SIAGA_PRIMARY} name="chatbox-outline" size={30} />
       </Pressable>
       <View style={styles.dispatchAction}>
-        <SiagaButton onPress={handleArrival}>
-          Saya melihat bantuan datang
+        <SiagaButton
+          isDisabled={acknowledgement.isPending || isHelpVisible}
+          onPress={handleArrival}
+        >
+          {isHelpVisible
+            ? "Konfirmasi sudah dikirim"
+            : "Saya melihat bantuan datang"}
         </SiagaButton>
       </View>
     </ReferenceCanvas>
@@ -329,12 +597,34 @@ export function DispatchScreen() {
 
 export function ArrivalScreen() {
   const router = useRouter();
-  const { completeIncident } = useIncident();
+  const { reportId } = useIncident();
+  const reportQuery = useReporterReportQuery(reportId);
+  const acknowledgement = useAcknowledgeReportMutation();
+  const report = reportQuery.data;
+  const dispatch = report?.latestDispatch;
+  const agencyName = dispatch?.agencyName ?? "Tim bantuan";
+  const unitCode = dispatch?.unitCode ?? "unit lapangan";
+  const isWithResponder = report?.acknowledgements.includes("WITH_RESPONDER");
 
-  const handleComplete = useCallback(() => {
-    completeIncident();
-    router.replace("/complete");
-  }, [completeIncident, router]);
+  useEffect(() => {
+    if (
+      report?.status === "RESOLVED" ||
+      report?.status === "CLOSED" ||
+      report?.status === "CANCELLED"
+    ) {
+      router.replace("/complete");
+    }
+  }, [report?.status, router]);
+
+  const handleComplete = useCallback(async () => {
+    if (!reportId) {
+      return;
+    }
+    await acknowledgement.mutateAsync({
+      reportId,
+      type: "WITH_RESPONDER",
+    });
+  }, [acknowledgement, reportId]);
 
   const handleOpenChat = useCallback(() => {
     router.push("/chat");
@@ -344,11 +634,13 @@ export function ArrivalScreen() {
     <ReferenceCanvas testID="arrival-screen">
       <Text style={styles.flowTitle}>Bantuan sudah tiba</Text>
       <Text style={styles.arrivalSubtitle}>
-        Polisi 07 berada di depan lokasi.
+        {agencyName} telah ditandai tiba oleh backend.
       </Text>
       <View style={styles.arrivedBadge}>
         <View style={styles.arrivedDot} />
-        <Text style={styles.arrivedText}>Polisi 07 · tiba 19:46</Text>
+        <Text style={styles.arrivedText}>
+          {agencyName} · {unitCode}
+        </Text>
       </View>
       <View style={styles.unitCard}>
         <View style={styles.unitTopRow}>
@@ -356,8 +648,8 @@ export function ArrivalScreen() {
             <Text style={styles.unitMark}>P</Text>
           </View>
           <View style={styles.unitCopy}>
-            <Text style={styles.unitTitle}>Polisi 07</Text>
-            <Text style={styles.unitMeta}>Petugas: A. Putra · unit P-12</Text>
+            <Text style={styles.unitTitle}>{agencyName}</Text>
+            <Text style={styles.unitMeta}>Kode unit: {unitCode}</Text>
           </View>
         </View>
         <Text style={styles.unitAdvice}>
@@ -373,11 +665,16 @@ export function ArrivalScreen() {
         onPress={handleOpenChat}
         style={styles.chatShortcut}
       >
-        <Ionicons color="#d72638" name="chatbox-outline" size={30} />
+        <Ionicons color={SIAGA_PRIMARY} name="chatbox-outline" size={30} />
       </Pressable>
       <View style={styles.dispatchAction}>
-        <SiagaButton onPress={handleComplete}>
-          Saya sudah bersama petugas
+        <SiagaButton
+          isDisabled={acknowledgement.isPending || isWithResponder}
+          onPress={handleComplete}
+        >
+          {isWithResponder
+            ? "Konfirmasi sudah dikirim"
+            : "Saya sudah bersama petugas"}
         </SiagaButton>
       </View>
     </ReferenceCanvas>
@@ -386,7 +683,9 @@ export function ArrivalScreen() {
 
 export function CompleteScreen() {
   const router = useRouter();
-  const { cancelIncident } = useIncident();
+  const { cancelIncident, reportId } = useIncident();
+  const reportQuery = useReporterReportQuery(reportId);
+  const report = reportQuery.data;
 
   const handleHome = useCallback(() => {
     cancelIncident();
@@ -402,18 +701,31 @@ export function CompleteScreen() {
     <ReferenceCanvas testID="complete-screen">
       <View style={styles.completeHalo}>
         <View style={styles.completeCore}>
-          <Ionicons color="#ffffff" name="checkmark" size={58} />
+          <Ionicons color={WHITE} name="checkmark" size={58} />
         </View>
       </View>
       <Text style={styles.completeTitle}>Kamu sudah aman</Text>
       <Text style={styles.completeSubtitle}>
-        Laporan SOS-1048 telah selesai dan tersimpan.
+        Laporan {report?.id.slice(0, 8).toUpperCase() ?? "darurat"} berstatus{" "}
+        {report?.status ?? "tersimpan"}.
       </Text>
       <View style={styles.summaryCard}>
         <Text style={styles.summaryLabel}>RINGKASAN</Text>
-        <SummaryRow label="Durasi" top={48} value="4 menit" />
-        <SummaryRow label="Bantuan" top={84} value="Polisi 07" />
-        <SummaryRow label="Status" top={120} value="Selesai · 19:47" />
+        <SummaryRow
+          label="Jenis"
+          top={48}
+          value={report?.incidentType ?? "Belum diklasifikasi"}
+        />
+        <SummaryRow
+          label="Bantuan"
+          top={84}
+          value={report?.latestDispatch?.agencyName ?? "Belum ditetapkan"}
+        />
+        <SummaryRow
+          label="Status"
+          top={120}
+          value={report?.status ?? "Memuat"}
+        />
       </View>
       <View style={styles.homeAction}>
         <SiagaButton onPress={handleHome}>Kembali ke halaman utama</SiagaButton>
@@ -444,10 +756,10 @@ function SummaryRow({ label, top, value }: SummaryRowProps) {
 
 const styles = StyleSheet.create({
   aiBubble: {
-    backgroundColor: "#ffffff",
+    backgroundColor: SIAGA_PANEL,
   },
   aiMark: {
-    color: "#d72638",
+    color: SIAGA_PRIMARY,
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 34,
     lineHeight: 46,
@@ -463,7 +775,7 @@ const styles = StyleSheet.create({
     width: 342,
   },
   arrivalSubtitle: {
-    color: "#71696a",
+    color: SIAGA_MUTED,
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 12,
     left: 24,
@@ -473,8 +785,8 @@ const styles = StyleSheet.create({
   },
   arrivedBadge: {
     alignItems: "center",
-    backgroundColor: "#eaf7f0",
-    borderColor: "#cde2d7",
+    backgroundColor: SIAGA_SUCCESS_SOFT,
+    borderColor: SIAGA_SUCCESS_BORDER,
     borderCurve: "continuous",
     borderRadius: 8,
     borderWidth: 1,
@@ -488,20 +800,20 @@ const styles = StyleSheet.create({
     width: 342,
   },
   arrivedDot: {
-    backgroundColor: "#2e8b64",
+    backgroundColor: SIAGA_SUCCESS,
     borderCurve: "continuous",
     borderRadius: 5,
     height: 10,
     width: 10,
   },
   arrivedText: {
-    color: "#2e8b64",
+    color: SIAGA_SUCCESS,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 11,
   },
   cancelAction: {
     alignItems: "center",
-    borderColor: "#ffffff",
+    borderColor: WHITE,
     borderCurve: "continuous",
     borderRadius: 12,
     borderWidth: 1,
@@ -513,14 +825,14 @@ const styles = StyleSheet.create({
     width: 262,
   },
   cancelLabel: {
-    color: "#ffffff",
+    color: WHITE,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 13,
     lineHeight: 18,
   },
   chatAvatar: {
     alignItems: "center",
-    backgroundColor: "#d72638",
+    backgroundColor: SIAGA_PRIMARY,
     borderCurve: "continuous",
     borderRadius: 22,
     height: 44,
@@ -529,8 +841,8 @@ const styles = StyleSheet.create({
   },
   chatComposer: {
     alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderColor: "#ded7d3",
+    backgroundColor: SIAGA_PANEL,
+    borderColor: SIAGA_BORDER,
     borderCurve: "continuous",
     borderRadius: 12,
     borderWidth: 1,
@@ -544,8 +856,8 @@ const styles = StyleSheet.create({
   },
   chatHeader: {
     alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderColor: "#ded7d3",
+    backgroundColor: SIAGA_PANEL,
+    borderColor: SIAGA_BORDER,
     borderCurve: "continuous",
     borderRadius: 14,
     borderWidth: 1,
@@ -562,7 +874,7 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   chatInput: {
-    color: "#241f20",
+    color: SIAGA_BODY,
     flex: 1,
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 11,
@@ -570,14 +882,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   chatMark: {
-    color: "#ffffff",
+    color: WHITE,
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 24,
   },
+  chatModeActions: {
+    flexDirection: "row",
+    gap: 10,
+    left: 16,
+    position: "absolute",
+    top: 676,
+    width: 358,
+  },
   chatShortcut: {
     alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderColor: "#d72638",
+    backgroundColor: SIAGA_PANEL,
+    borderColor: SIAGA_PRIMARY,
     borderCurve: "continuous",
     borderRadius: 12,
     borderWidth: 1,
@@ -589,7 +909,7 @@ const styles = StyleSheet.create({
     width: 54,
   },
   chatStatus: {
-    color: "#776f72",
+    color: SIAGA_MUTED_STRONG,
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 10,
     lineHeight: 14,
@@ -600,14 +920,14 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   chatTitle: {
-    color: "#241f20",
+    color: SIAGA_BODY,
     fontFamily: "PlusJakartaSans_800ExtraBold",
     fontSize: 16,
     lineHeight: 20,
   },
   completeCore: {
     alignItems: "center",
-    backgroundColor: "#2e8b64",
+    backgroundColor: SIAGA_SUCCESS,
     borderCurve: "continuous",
     borderRadius: 50,
     height: 100,
@@ -616,7 +936,7 @@ const styles = StyleSheet.create({
   },
   completeHalo: {
     alignItems: "center",
-    backgroundColor: "#eaf7f0",
+    backgroundColor: SIAGA_SUCCESS_SOFT,
     borderCurve: "continuous",
     borderRadius: 80,
     height: 160,
@@ -627,7 +947,7 @@ const styles = StyleSheet.create({
     width: 160,
   },
   completeSubtitle: {
-    color: "#71696a",
+    color: SIAGA_MUTED,
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 12,
     left: 24,
@@ -638,7 +958,7 @@ const styles = StyleSheet.create({
     width: 342,
   },
   completeTitle: {
-    color: "#201b1c",
+    color: SIAGA_INK,
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 28,
     left: 24,
@@ -649,7 +969,7 @@ const styles = StyleSheet.create({
     width: 342,
   },
   connectingTitle: {
-    color: "#ffffff",
+    color: WHITE,
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 26,
     left: 32,
@@ -658,6 +978,17 @@ const styles = StyleSheet.create({
     textAlign: "center",
     top: 488,
     width: 326,
+  },
+  connectionError: {
+    color: WHITE,
+    fontFamily: "PlusJakartaSans_500Medium",
+    fontSize: 11,
+    left: 44,
+    lineHeight: 17,
+    position: "absolute",
+    textAlign: "center",
+    top: 570,
+    width: 302,
   },
   dispatchAction: {
     height: 54,
@@ -677,7 +1008,7 @@ const styles = StyleSheet.create({
     width: 342,
   },
   dispatchSubtitle: {
-    color: "#71696a",
+    color: SIAGA_MUTED,
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 12,
     left: 24,
@@ -686,11 +1017,10 @@ const styles = StyleSheet.create({
     top: 128,
   },
   emergencyPrompt: {
-    backgroundColor: "#d72638",
+    backgroundColor: SIAGA_PRIMARY,
     borderCurve: "continuous",
     borderRadius: 14,
-    experimental_backgroundImage:
-      "linear-gradient(135deg, #d72638 0%, #850817 100%)",
+    experimental_backgroundImage: `linear-gradient(135deg, ${SIAGA_PRIMARY} 0%, ${SIAGA_PRIMARY_DARK} 100%)`,
     height: 166,
     left: 24,
     padding: 18,
@@ -706,7 +1036,7 @@ const styles = StyleSheet.create({
     width: 342,
   },
   etaBadge: {
-    backgroundColor: "#ffffff",
+    backgroundColor: SIAGA_PANEL,
     borderCurve: "continuous",
     borderRadius: 8,
     left: 12,
@@ -716,12 +1046,12 @@ const styles = StyleSheet.create({
     top: 12,
   },
   etaText: {
-    color: "#241f20",
+    color: SIAGA_BODY,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 10,
   },
   flowTitle: {
-    color: "#201b1c",
+    color: SIAGA_INK,
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 28,
     left: 24,
@@ -746,8 +1076,8 @@ const styles = StyleSheet.create({
   },
   instructionCard: {
     alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderColor: "#ded7d3",
+    backgroundColor: SIAGA_PANEL,
+    borderColor: SIAGA_BORDER,
     borderCurve: "continuous",
     borderRadius: 14,
     borderWidth: 1,
@@ -761,7 +1091,7 @@ const styles = StyleSheet.create({
   },
   instructionNumber: {
     alignItems: "center",
-    backgroundColor: "#fff0f1",
+    backgroundColor: SIAGA_SOFT,
     borderCurve: "continuous",
     borderRadius: 18,
     height: 36,
@@ -769,19 +1099,19 @@ const styles = StyleSheet.create({
     width: 36,
   },
   instructionNumberText: {
-    color: "#d72638",
+    color: SIAGA_PRIMARY,
     fontFamily: "PlusJakartaSans_800ExtraBold",
     fontSize: 14,
   },
   instructionText: {
-    color: "#241f20",
+    color: SIAGA_BODY,
     flex: 1,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 11,
     lineHeight: 16,
   },
   listeningState: {
-    color: "#d72638",
+    color: SIAGA_PRIMARY,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 10,
     left: 24,
@@ -796,13 +1126,13 @@ const styles = StyleSheet.create({
     width: "100%",
   },
   messageBody: {
-    color: "#241f20",
+    color: SIAGA_BODY,
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 12,
     lineHeight: 18,
   },
   messageBubble: {
-    borderColor: "#ded7d3",
+    borderColor: SIAGA_BORDER,
     borderCurve: "continuous",
     borderRadius: 14,
     borderWidth: 1,
@@ -811,13 +1141,13 @@ const styles = StyleSheet.create({
     position: "absolute",
   },
   messageSender: {
-    color: "#d72638",
+    color: SIAGA_PRIMARY,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 10,
     lineHeight: 14,
   },
   onlineDot: {
-    backgroundColor: "#2e8b64",
+    backgroundColor: SIAGA_SUCCESS,
     borderCurve: "continuous",
     borderRadius: 4,
     height: 8,
@@ -827,7 +1157,7 @@ const styles = StyleSheet.create({
     top: 91,
   },
   priorityAlert: {
-    backgroundColor: "#7a0c18",
+    backgroundColor: SIAGA_PRIMARY_DARK,
     borderCurve: "continuous",
     borderRadius: 14,
     height: 67,
@@ -839,32 +1169,32 @@ const styles = StyleSheet.create({
     width: 342,
   },
   priorityBody: {
-    color: "#ffffff",
+    color: WHITE,
     fontFamily: "PlusJakartaSans_800ExtraBold",
     fontSize: 17,
     lineHeight: 24,
   },
   priorityEyebrow: {
-    color: "#ffffff",
+    color: WHITE,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 10,
     lineHeight: 14,
   },
   promptEyebrow: {
-    color: "#ffffff",
+    color: WHITE,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 10,
     lineHeight: 14,
   },
   promptInstruction: {
-    color: "#ffffff",
+    color: WHITE,
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 10,
     lineHeight: 15,
     marginTop: 6,
   },
   promptQuestion: {
-    color: "#ffffff",
+    color: WHITE,
     fontFamily: "PlusJakartaSans_800ExtraBold",
     fontSize: 25,
     lineHeight: 38,
@@ -873,7 +1203,7 @@ const styles = StyleSheet.create({
   },
   pulseCore: {
     alignItems: "center",
-    backgroundColor: "#ffffff",
+    backgroundColor: WHITE,
     borderCurve: "continuous",
     borderRadius: 50,
     height: 100,
@@ -910,9 +1240,24 @@ const styles = StyleSheet.create({
     top: 176,
     width: 280,
   },
+  secondaryChatAction: {
+    alignItems: "center",
+    borderColor: SIAGA_PRIMARY,
+    borderCurve: "continuous",
+    borderRadius: 10,
+    borderWidth: 1,
+    flex: 1,
+    height: 44,
+    justifyContent: "center",
+  },
+  secondaryChatActionText: {
+    color: SIAGA_PRIMARY,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: 10,
+  },
   sendAction: {
     alignItems: "center",
-    backgroundColor: "#d72638",
+    backgroundColor: SIAGA_PRIMARY,
     borderCurve: "continuous",
     borderRadius: 22,
     height: 44,
@@ -920,8 +1265,8 @@ const styles = StyleSheet.create({
     width: 44,
   },
   summaryCard: {
-    backgroundColor: "#ffffff",
-    borderColor: "#ded7d3",
+    backgroundColor: SIAGA_PANEL,
+    borderColor: SIAGA_BORDER,
     borderCurve: "continuous",
     borderRadius: 14,
     borderWidth: 1,
@@ -932,7 +1277,7 @@ const styles = StyleSheet.create({
     width: 342,
   },
   summaryLabel: {
-    color: "#776f72",
+    color: SIAGA_MUTED_STRONG,
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 10,
     left: 16,
@@ -948,19 +1293,19 @@ const styles = StyleSheet.create({
     width: 310,
   },
   summaryRowLabel: {
-    color: "#776f72",
+    color: SIAGA_MUTED_STRONG,
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 11,
     lineHeight: 16,
   },
   summaryRowValue: {
-    color: "#241f20",
+    color: SIAGA_BODY,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 11,
     lineHeight: 16,
   },
   timer: {
-    color: "#ffffff",
+    color: WHITE,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 12,
     left: 164,
@@ -971,7 +1316,7 @@ const styles = StyleSheet.create({
     width: 62,
   },
   transcriptBody: {
-    color: "#ffffff",
+    color: WHITE,
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 11,
     lineHeight: 18,
@@ -983,7 +1328,7 @@ const styles = StyleSheet.create({
     borderCurve: "continuous",
     borderRadius: 12,
     borderWidth: 1,
-    height: 221,
+    height: 166,
     left: 24,
     padding: 16,
     position: "absolute",
@@ -991,20 +1336,20 @@ const styles = StyleSheet.create({
     width: 342,
   },
   transcriptLabel: {
-    color: "#d72638",
+    color: SIAGA_PRIMARY,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 10,
     lineHeight: 14,
   },
   unitAdvice: {
-    color: "#d72638",
+    color: SIAGA_PRIMARY,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 9,
     lineHeight: 14,
   },
   unitAvatar: {
     alignItems: "center",
-    backgroundColor: "#920b1a",
+    backgroundColor: SIAGA_PRIMARY,
     borderCurve: "continuous",
     borderRadius: 24,
     height: 48,
@@ -1012,8 +1357,8 @@ const styles = StyleSheet.create({
     width: 48,
   },
   unitCard: {
-    backgroundColor: "#ffffff",
-    borderColor: "#ded7d3",
+    backgroundColor: SIAGA_PANEL,
+    borderColor: SIAGA_BORDER,
     borderCurve: "continuous",
     borderRadius: 14,
     borderWidth: 1,
@@ -1029,18 +1374,18 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   unitMark: {
-    color: "#ffffff",
+    color: WHITE,
     fontFamily: "PlusJakartaSans_800ExtraBold",
     fontSize: 18,
   },
   unitMeta: {
-    color: "#776f72",
+    color: SIAGA_MUTED_STRONG,
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 10,
     lineHeight: 15,
   },
   unitTitle: {
-    color: "#241f20",
+    color: SIAGA_BODY,
     fontFamily: "PlusJakartaSans_800ExtraBold",
     fontSize: 15,
     lineHeight: 20,
@@ -1051,10 +1396,17 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   userBubble: {
-    backgroundColor: "#fff0f1",
+    backgroundColor: SIAGA_SOFT,
+  },
+  voiceTextAction: {
+    height: 48,
+    left: 24,
+    position: "absolute",
+    top: 690,
+    width: 342,
   },
   waveBar: {
-    backgroundColor: "#e5161c",
+    backgroundColor: SIAGA_PRIORITY,
     borderCurve: "continuous",
     borderRadius: 4,
     width: 8,

@@ -30,6 +30,10 @@ export interface UpdateReportDetailInput {
 }
 
 export interface ReportRepository {
+  claimAndTakeover: (
+    reportId: string,
+    operatorId: string
+  ) => Promise<ReportDetail>;
   findActiveDetail: (reportId: string) => Promise<ReportDetail | null>;
   findArchivedDetail: (
     reportId: string

@@ -4,6 +4,16 @@ import { useCallback } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { ReferenceCanvas } from "@/components/reference-canvas";
+import {
+  SIAGA_BODY,
+  SIAGA_BORDER,
+  SIAGA_INK,
+  SIAGA_MUTED,
+  SIAGA_MUTED_STRONG,
+  SIAGA_PANEL,
+  SIAGA_PRIMARY,
+  SIAGA_SOFT,
+} from "@/constants/colors";
 import { REPORT_MODES } from "@/features/emergency/content";
 import { useIncident } from "@/features/emergency/context";
 import type { ReportMode, ReportModeOption } from "@/features/emergency/types";
@@ -38,7 +48,7 @@ function ReportModeCard({ index, onSelect, option }: ReportModeCardProps) {
         option.id === "silent" ? styles.silentCard : null,
       ]}
     >
-      <Ionicons color="#111111" name={option.icon} size={34} />
+      <Ionicons color={SIAGA_BODY} name={option.icon} size={34} />
       <View style={styles.cardCopy}>
         <Text style={styles.cardTitle}>{option.title}</Text>
         <Text style={styles.cardBody}>{option.body}</Text>
@@ -84,7 +94,7 @@ export function ReportModeScreen() {
         onPress={handleOperator}
         style={styles.operatorAction}
       >
-        <Ionicons color="#870000" name="headset-outline" size={19} />
+        <Ionicons color={SIAGA_PRIMARY} name="headset-outline" size={19} />
         <Text style={styles.operatorLabel}>Hubungkan ke operator 112</Text>
       </Pressable>
     </ReferenceCanvas>
@@ -94,8 +104,8 @@ export function ReportModeScreen() {
 const styles = StyleSheet.create({
   card: {
     alignItems: "center",
-    backgroundColor: "#ffffff",
-    borderColor: "#ded7d3",
+    backgroundColor: SIAGA_PANEL,
+    borderColor: SIAGA_BORDER,
     borderCurve: "continuous",
     borderRadius: 14,
     borderWidth: 1,
@@ -108,7 +118,7 @@ const styles = StyleSheet.create({
     width: 342,
   },
   cardBody: {
-    color: "#776f72",
+    color: SIAGA_MUTED_STRONG,
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 10,
     lineHeight: 14,
@@ -119,7 +129,7 @@ const styles = StyleSheet.create({
     gap: 7,
   },
   cardTitle: {
-    color: "#241f20",
+    color: SIAGA_BODY,
     fontFamily: "PlusJakartaSans_800ExtraBold",
     fontSize: 16,
     lineHeight: 22,
@@ -136,18 +146,18 @@ const styles = StyleSheet.create({
     width: 342,
   },
   operatorLabel: {
-    color: "#870000",
+    color: SIAGA_PRIMARY,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 12,
     lineHeight: 18,
   },
   silentCard: {
-    backgroundColor: "#fff3f4",
-    borderColor: "#d72638",
+    backgroundColor: SIAGA_SOFT,
+    borderColor: SIAGA_PRIMARY,
     borderWidth: 1.5,
   },
   subtitle: {
-    color: "#71696a",
+    color: SIAGA_MUTED,
     fontFamily: "PlusJakartaSans_400Regular",
     fontSize: 12,
     left: 24,
@@ -157,7 +167,7 @@ const styles = StyleSheet.create({
     width: 342,
   },
   title: {
-    color: "#201b1c",
+    color: SIAGA_INK,
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: 27,
     left: 24,

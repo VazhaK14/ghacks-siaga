@@ -36,3 +36,14 @@ export const operatorProcedure = protectedProcedure.use(({ ctx, next }) => {
   }
   return next({ ctx });
 });
+
+export const reporterProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (ctx.session.user.role !== "REPORTER") {
+    throw new TRPCError({
+      cause: "Not a reporter",
+      code: "FORBIDDEN",
+      message: "Reporter access required",
+    });
+  }
+  return next({ ctx });
+});

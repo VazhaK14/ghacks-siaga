@@ -35,6 +35,17 @@ enum HandlingMode {
   HUMAN
 }
 
+enum InteractionMode {
+  VOICE
+  TEXT
+  SILENT
+}
+
+enum ResponderPreference {
+  AI
+  OPERATOR
+}
+
 enum CommunicationChannel {
   VOICE
   CHAT
@@ -53,13 +64,26 @@ enum ReportClosureReason {
   OTHER
 }
 
+enum CancellationRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ReportAcknowledgementType {
+  HELP_VISIBLE
+  WITH_RESPONDER
+}
+
 model EmergencyReport {
   id String @id @default(cuid())
 
   reporterId String
   reporter   User   @relation("ReportsAsReporter", fields: [reporterId], references: [id])
 
-  accessToken String @unique @default(cuid())
+  accessToken    String  @unique @default(cuid())
+  idempotencyKey String?
+  version        Int     @default(1)
 
   status       ReportStatus   @default(SUBMITTED)
   category     ReportCategory @default(UNCATEGORIZED)
@@ -75,16 +99,18 @@ model EmergencyReport {
   longitude            Float?
   address              String?
 
-  activeChannel CommunicationChannel?
-  handlingMode  HandlingMode          @default(AI)
+  activeChannel       CommunicationChannel?
+  handlingMode        HandlingMode          @default(AI)
+  interactionMode     InteractionMode?
+  responderPreference ResponderPreference   @default(AI)
 
   assignedOperatorId String?
   assignedOperator   User?   @relation("ReportsAsOperator", fields: [assignedOperatorId], references: [id])
 
-  closureReason       ReportClosureReason?
-  closureNote         String?
-  closedByOperatorId  String?
-  closedByOperator    User?                @relation("ReportsClosedByOperator", fields: [closedByOperatorId], references: [id])
+  closureReason      ReportClosureReason?
+  closureNote        String?
+  closedByOperatorId String?
+  closedByOperator   User?                @relation("ReportsClosedByOperator", fields: [closedByOperatorId], references: [id])
 
   isDemo Boolean @default(false)
 
@@ -93,14 +119,20 @@ model EmergencyReport {
   resolvedAt DateTime?
   closedAt   DateTime?
 
-  messages        Message[]
-  callSessions    CallSession[]
-  statusHistory   ReportStatusEvent[]
-  channelSwitches ChannelSwitchEvent[]
-  aiAnalyses      AIAnalysisSnapshot[]
-  handoffEvents   HandoffEvent[]
-  dispatches      DispatchRequest[]
+  messages             Message[]
+  callSessions         CallSession[]
+  modeEvents           ModeEvent[]
+  acousticSignals      AcousticSignal[]
+  recordings           RecordingAsset[]
+  cancellationRequests CancellationRequest[]
+  acknowledgements     ReportAcknowledgement[]
+  statusHistory        ReportStatusEvent[]
+  channelSwitches      ChannelSwitchEvent[]
+  aiAnalyses           AIAnalysisSnapshot[]
+  handoffEvents        HandoffEvent[]
+  dispatches           DispatchRequest[]
 
+  @@unique([reporterId, idempotencyKey])
   @@index([status, category])
   @@index([reporterId])
   @@index([assignedOperatorId])
@@ -149,4 +181,43 @@ model HandoffEvent {
 
   @@index([reportId])
   @@map("handoff_event")
+}
+
+model CancellationRequest {
+  id       String          @id @default(cuid())
+  reportId String
+  report   EmergencyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  requestedById String
+  requestedBy   User                      @relation("CancellationRequestedBy", fields: [requestedById], references: [id])
+  reason        String
+  status        CancellationRequestStatus @default(PENDING)
+
+  reviewedById String?
+  reviewedBy   User?     @relation("CancellationReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  outcomeNote  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([reportId, status])
+  @@index([requestedById])
+  @@index([reviewedById])
+  @@map("cancellation_request")
+}
+
+model ReportAcknowledgement {
+  id       String          @id @default(cuid())
+  reportId String
+  report   EmergencyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  reporterId String
+  reporter   User                      @relation("ReportAcknowledgementReporter", fields: [reporterId], references: [id])
+  type       ReportAcknowledgementType
+  createdAt  DateTime                  @default(now())
+
+  @@unique([reportId, type])
+  @@index([reporterId])
+  @@map("report_acknowledgement")
 }

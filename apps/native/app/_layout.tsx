@@ -15,19 +15,33 @@ import { useEffect } from "react";
 import { StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
+import { Uniwind } from "uniwind";
 
+import {
+  SIAGA_CALL_BG,
+  SIAGA_PRIMARY_DARK,
+  SIAGA_SURFACE,
+} from "@/constants/colors";
 import { AppThemeProvider } from "@/contexts/app-theme-context";
+import { AuthGate } from "@/features/auth/guards";
 import { IncidentProvider } from "@/features/emergency/context";
 import { ProfileGate } from "@/features/profile/components/profile-gate";
 import { ProfileProvider } from "@/features/profile/context";
+import { registerLiveKitGlobals } from "@/lib/register-livekit-globals";
 import { queryClient } from "@/utils/trpc";
 
+registerLiveKitGlobals();
 preventAutoHideAsync();
+// Uniwind has no built-in persistence — every cold start otherwise defaults
+// to the device's system color scheme. Force dark by default (matching
+// web's defaultTheme="dark"); the theme toggle can still switch to light
+// for the rest of the session.
+Uniwind.setTheme("dark");
 
 const SCREEN_COLORS = {
-  call: "#12090b",
-  connecting: "#850817",
-  surface: "#f6f3f0",
+  call: SIAGA_CALL_BG,
+  connecting: SIAGA_PRIMARY_DARK,
+  surface: SIAGA_SURFACE,
 } as const;
 
 const getRouteBackgroundStyle = (pathname: string) => {
@@ -57,8 +71,11 @@ function StackLayout() {
         statusBarTranslucent: true,
       }}
     >
+      <Stack.Screen name="sign-in" />
+      <Stack.Screen name="sign-up" />
       <Stack.Screen name="profile-setup" />
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="sos" options={{ presentation: "modal" }} />
       <Stack.Screen name="report-mode" />
       <Stack.Screen
         name="connecting"
@@ -70,6 +87,7 @@ function StackLayout() {
         name="voice-session"
         options={{ contentStyle: { backgroundColor: SCREEN_COLORS.call } }}
       />
+      <Stack.Screen name="silent-session" />
       <Stack.Screen name="chat" />
       <Stack.Screen name="dispatch" />
       <Stack.Screen name="arrival" />
@@ -110,13 +128,15 @@ export default function Layout() {
         >
           <AppThemeProvider>
             <HeroUINativeProvider>
-              <ProfileProvider>
-                <IncidentProvider>
-                  <ProfileGate>
-                    <StackLayout />
-                  </ProfileGate>
-                </IncidentProvider>
-              </ProfileProvider>
+              <AuthGate>
+                <ProfileProvider>
+                  <IncidentProvider>
+                    <ProfileGate>
+                      <StackLayout />
+                    </ProfileGate>
+                  </IncidentProvider>
+                </ProfileProvider>
+              </AuthGate>
             </HeroUINativeProvider>
           </AppThemeProvider>
         </KeyboardProvider>
