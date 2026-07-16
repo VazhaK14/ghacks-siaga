@@ -17,6 +17,10 @@ const REPORT_EVENT_NAMES = [
   "report.created",
   "report.updated",
   "report.removed",
+  "dispatch.created",
+  "dispatch.updated",
+  "dispatch.arrived",
+  "dispatch.completed",
 ] as const;
 
 export function useActiveReportsQuery() {
@@ -56,9 +60,14 @@ export function useReportLiveUpdates(
     });
 
     const invalidateReports = async (): Promise<void> => {
-      await queryClient.invalidateQueries({
-        queryKey: trpc.report.pathKey(),
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: trpc.report.pathKey(),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: trpc.dispatch.pathKey(),
+        }),
+      ]);
     };
 
     const handleConnected = () => {

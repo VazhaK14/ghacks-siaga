@@ -16,8 +16,13 @@ import { ReportDetailPanel } from "./report-detail-panel";
 import { ReportQueuePanel } from "./report-queue-panel";
 
 export function MapMonitorScreen() {
-  const { connectionStatus, onSelectReport, selectedReportId } =
-    useMapWorkspace();
+  const {
+    connectionStatus,
+    onSelectAgency,
+    onSelectReport,
+    selectedAgencyId,
+    selectedReportId,
+  } = useMapWorkspace();
   const activeReportsQuery = useActiveReportsQuery();
   const [mobilePanel, setMobilePanel] = useState<MobileMapPanel>(null);
   const reportDetailQuery = useReportDetailQuery(selectedReportId);
@@ -85,7 +90,9 @@ export function MapMonitorScreen() {
           className="pointer-events-auto absolute inset-y-4 right-4 w-96"
           error={reportDetailQuery.error}
           isPending={reportDetailQuery.isPending}
+          onSelectAgency={onSelectAgency}
           report={reportDetailQuery.data ?? null}
+          selectedAgencyId={selectedAgencyId}
         />
       </div>
 
@@ -159,7 +166,9 @@ export function MapMonitorScreen() {
             className="size-full rounded-none bg-transparent shadow-none ring-0 backdrop-blur-none"
             error={reportDetailQuery.error}
             isPending={reportDetailQuery.isPending}
+            onSelectAgency={onSelectAgency}
             report={reportDetailQuery.data ?? null}
+            selectedAgencyId={selectedAgencyId}
           />
         </SheetContent>
       </Sheet>

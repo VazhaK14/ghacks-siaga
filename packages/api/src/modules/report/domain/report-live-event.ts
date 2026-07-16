@@ -3,9 +3,14 @@ export const REPORT_LIVE_CHANNEL = "reports:live";
 export type ReportLiveEventType =
   | "report.created"
   | "report.updated"
-  | "report.removed";
+  | "report.removed"
+  | "dispatch.created"
+  | "dispatch.updated"
+  | "dispatch.arrived"
+  | "dispatch.completed";
 
 export interface ReportLiveEvent {
+  dispatchId?: string;
   reportId: string;
   type: ReportLiveEventType;
   updatedAt: string;
@@ -27,6 +32,10 @@ const REPORT_EVENT_TYPES = new Set<ReportLiveEventType>([
   "report.created",
   "report.updated",
   "report.removed",
+  "dispatch.created",
+  "dispatch.updated",
+  "dispatch.arrived",
+  "dispatch.completed",
 ]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -49,7 +58,7 @@ export const parseReportLiveEvent = (
     return null;
   }
 
-  const { reportId, type, updatedAt } = parsedValue;
+  const { dispatchId, reportId, type, updatedAt } = parsedValue;
   if (
     typeof reportId !== "string" ||
     typeof type !== "string" ||
@@ -60,6 +69,7 @@ export const parseReportLiveEvent = (
   }
 
   return {
+    dispatchId: typeof dispatchId === "string" ? dispatchId : undefined,
     reportId,
     type: type as ReportLiveEventType,
     updatedAt,

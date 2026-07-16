@@ -15,13 +15,23 @@ enum DispatchStatus {
   CANCELLED
 }
 
+enum DispatchAgencyAvailability {
+  AVAILABLE
+  BUSY
+  OFFLINE
+}
+
 model DispatchAgency {
-  id           String             @id @default(cuid())
+  id           String                     @id @default(cuid())
   name         String
   type         DispatchAgencyType
   contactPhone String?
   jurisdiction String?
-  isActive     Boolean            @default(true)
+  address      String?
+  latitude     Float?
+  longitude    Float?
+  availability DispatchAgencyAvailability @default(AVAILABLE)
+  isActive     Boolean                    @default(true)
 
   dispatches DispatchRequest[]
 
@@ -46,8 +56,11 @@ model DispatchRequest {
 
   requestedAt    DateTime  @default(now())
   acknowledgedAt DateTime?
+  enRouteAt      DateTime?
+  estimatedArrivalAt DateTime?
   arrivedAt      DateTime?
   completedAt    DateTime?
+  unitCode       String?
 
   @@index([reportId])
   @@index([agencyId])

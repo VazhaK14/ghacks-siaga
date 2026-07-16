@@ -13,13 +13,21 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import MapView, {
   FullscreenControl,
   GeolocateControl,
+  Layer,
   type ErrorEvent as MapErrorEvent,
   type MapRef,
   Marker,
   NavigationControl,
   ScaleControl,
+  Source,
 } from "react-map-gl/maplibre";
 
+import { AGENCY_TYPE_CONFIG } from "@/features/dispatch/content";
+import { buildDispatchRouteCoordinates } from "@/features/dispatch/route-geometry";
+import type {
+  DispatchAgency,
+  DispatchTracking,
+} from "@/features/dispatch/types";
 import { CATEGORY_CONFIG, getReportTitle } from "../content";
 import type {
   MapCanvasProps,
@@ -42,7 +50,7 @@ const DESKTOP_PANEL_BREAKPOINT = 1280;
 
 const getCameraPadding = (layout: MapWorkspaceLayout) => {
   if (window.innerWidth >= DESKTOP_PANEL_BREAKPOINT) {
-    return layout === "monitor"
+    return layout === "monitor" || layout === "units"
       ? {
           bottom: 32,
           left: 624,
@@ -114,16 +122,142 @@ function ReportMarker({
   );
 }
 
+interface AgencyMarkerProps {
+  agency: DispatchAgency;
+  isSelected: boolean;
+  onSelectAgency: (agencyId: string) => void;
+}
+
+function AgencyMarker({
+  agency,
+  isSelected,
+  onSelectAgency,
+}: AgencyMarkerProps) {
+  const typeConfig = AGENCY_TYPE_CONFIG[agency.type];
+  const AgencyIcon = typeConfig.icon;
+  const handleSelect = useCallback(() => {
+    onSelectAgency(agency.id);
+  }, [agency.id, onSelectAgency]);
+
+  return (
+    <Marker
+      anchor="bottom"
+      latitude={agency.latitude}
+      longitude={agency.longitude}
+    >
+      <button
+        aria-label={`Pilih ${agency.name}`}
+        aria-pressed={isSelected}
+        className={cn(
+          "relative flex size-9 items-center justify-center rounded-md border-2 shadow-lg ring-2 ring-background transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring",
+          typeConfig.markerClassName,
+          agency.availability !== "AVAILABLE" && "opacity-65",
+          isSelected && "size-11 scale-110 ring-4 ring-primary-100"
+        )}
+        onClick={handleSelect}
+        title={`${agency.name} · ${agency.availability}`}
+        type="button"
+      >
+        <AgencyIcon aria-hidden className="size-4" />
+        <span
+          aria-hidden
+          className={cn(
+            "absolute -top-1 -right-1 size-3 rounded-full border-2 border-background",
+            agency.availability === "AVAILABLE" && "bg-green-200",
+            agency.availability === "BUSY" && "bg-yellow-200",
+            agency.availability === "OFFLINE" && "bg-neutral-500"
+          )}
+        />
+      </button>
+    </Marker>
+  );
+}
+
+const buildRouteGeoJson = (dispatch: DispatchTracking) => ({
+  features: [
+    {
+      geometry: {
+        coordinates: buildDispatchRouteCoordinates(dispatch),
+        type: "LineString" as const,
+      },
+      properties: {},
+      type: "Feature" as const,
+    },
+  ],
+  type: "FeatureCollection" as const,
+});
+
+function DispatchRoute({ dispatch }: { dispatch: DispatchTracking }) {
+  const typeConfig = AGENCY_TYPE_CONFIG[dispatch.agency.type];
+
+  return (
+    <Source
+      data={buildRouteGeoJson(dispatch)}
+      id={`dispatch-route-${dispatch.id}`}
+      type="geojson"
+    >
+      <Layer
+        id={`dispatch-route-outline-${dispatch.id}`}
+        paint={{
+          "line-color": "#ffffff",
+          "line-opacity": 0.85,
+          "line-width": 7,
+        }}
+        type="line"
+      />
+      <Layer
+        id={`dispatch-route-line-${dispatch.id}`}
+        paint={{
+          "line-color": typeConfig.routeColor,
+          "line-dasharray": [1.5, 1.5],
+          "line-width": 4,
+        }}
+        type="line"
+      />
+    </Source>
+  );
+}
+
+function DispatchVehicleMarker({ dispatch }: { dispatch: DispatchTracking }) {
+  const typeConfig = AGENCY_TYPE_CONFIG[dispatch.agency.type];
+  const VehicleIcon = typeConfig.vehicleIcon;
+
+  return (
+    <Marker
+      anchor="center"
+      latitude={dispatch.currentLatitude}
+      longitude={dispatch.currentLongitude}
+    >
+      <span
+        className={cn(
+          "flex size-11 items-center justify-center rounded-full border-2 shadow-xl ring-4 ring-background",
+          typeConfig.markerClassName
+        )}
+        title={`${dispatch.unitCode ?? "Unit"} · ${dispatch.status}`}
+      >
+        <VehicleIcon aria-hidden className="size-5" />
+      </span>
+    </Marker>
+  );
+}
+
 export function MapCanvas({
+  agencies,
+  dispatches,
   layout,
+  onSelectAgency,
   onSelectReport,
   points,
+  selectedAgencyId,
   selectedReportId,
 }: MapCanvasProps) {
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapKey, setMapKey] = useState(0);
   const mapRef = useRef<MapRef>(null);
   const selectedPoint = points.find((point) => point.id === selectedReportId);
+  const selectedAgency = agencies.find(
+    (agency) => agency.id === selectedAgencyId
+  );
 
   const handleMapError = useCallback((event: MapErrorEvent) => {
     setMapError(event.error.message);
@@ -135,17 +269,41 @@ export function MapCanvas({
   }, []);
 
   const focusSelectedPoint = useCallback(() => {
-    if (!selectedPoint) {
+    if (selectedPoint && agencies.length > 0) {
+      const visibleAgencies = selectedAgency ? [selectedAgency] : agencies;
+      const coordinates = [
+        [selectedPoint.longitude, selectedPoint.latitude],
+        ...visibleAgencies.map((agency) => [agency.longitude, agency.latitude]),
+      ];
+      const longitudes = coordinates.map(([longitude]) => longitude);
+      const latitudes = coordinates.map(([, latitude]) => latitude);
+
+      mapRef.current?.fitBounds(
+        [
+          [Math.min(...longitudes), Math.min(...latitudes)],
+          [Math.max(...longitudes), Math.max(...latitudes)],
+        ],
+        {
+          duration: 900,
+          maxZoom: 14,
+          padding: getCameraPadding(layout),
+        }
+      );
+      return;
+    }
+
+    const target = selectedAgency ?? selectedPoint;
+    if (!target) {
       return;
     }
 
     mapRef.current?.easeTo({
-      center: [selectedPoint.longitude, selectedPoint.latitude],
+      center: [target.longitude, target.latitude],
       duration: 900,
       padding: getCameraPadding(layout),
-      zoom: SELECTED_REPORT_ZOOM,
+      zoom: selectedPoint ? SELECTED_REPORT_ZOOM : 14,
     });
-  }, [layout, selectedPoint]);
+  }, [agencies, layout, selectedAgency, selectedPoint]);
 
   useEffect(() => {
     focusSelectedPoint();
@@ -177,7 +335,8 @@ export function MapCanvas({
     <div
       className={cn(
         "size-full min-h-0 overflow-hidden bg-neutral-300 [--map-control-left-offset:0px] [--map-control-top-offset:3rem] md:[--map-control-left-offset:16rem] md:[--map-control-top-offset:1rem]",
-        layout === "monitor" && "xl:[--map-control-left-offset:39rem]"
+        (layout === "monitor" || layout === "units") &&
+          "xl:[--map-control-left-offset:39rem]"
       )}
     >
       <MapView
@@ -196,6 +355,23 @@ export function MapCanvas({
             key={point.id}
             onSelectReport={onSelectReport}
             point={point}
+          />
+        ))}
+        {dispatches.map((dispatch) => (
+          <DispatchRoute dispatch={dispatch} key={`route-${dispatch.id}`} />
+        ))}
+        {agencies.map((agency) => (
+          <AgencyMarker
+            agency={agency}
+            isSelected={agency.id === selectedAgencyId}
+            key={agency.id}
+            onSelectAgency={onSelectAgency}
+          />
+        ))}
+        {dispatches.map((dispatch) => (
+          <DispatchVehicleMarker
+            dispatch={dispatch}
+            key={`vehicle-${dispatch.id}`}
           />
         ))}
 

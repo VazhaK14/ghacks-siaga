@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { ReportDispatchSection } from "@/features/dispatch/components/report-dispatch-section";
 import {
   CATEGORY_CONFIG,
   formatCoordinates,
@@ -32,7 +33,9 @@ interface ReportDetailPanelProps {
   error: DisplayError | null;
   isPending: boolean;
   onClose?: () => void;
+  onSelectAgency: (agencyId: string) => void;
   report: ReportDetail | null;
+  selectedAgencyId: string | null;
 }
 
 interface DetailRowProps {
@@ -238,11 +241,15 @@ function StatusHistorySection({ report }: { report: ReportDetail }) {
 function LoadedReportDetail({
   className,
   onClose,
+  onSelectAgency,
   report,
+  selectedAgencyId,
 }: {
   className?: string;
   onClose?: () => void;
+  onSelectAgency: (agencyId: string) => void;
   report: ReportDetail;
+  selectedAgencyId: string | null;
 }) {
   const category = CATEGORY_CONFIG[report.category];
   const CategoryIcon = category.icon;
@@ -325,6 +332,12 @@ function LoadedReportDetail({
         </section>
 
         <Separator className="my-4" />
+        <ReportDispatchSection
+          onSelectAgency={onSelectAgency}
+          reportId={report.id}
+          selectedAgencyId={selectedAgencyId}
+        />
+        <Separator className="my-4" />
         <ReporterSection report={report} />
         <Separator className="my-4" />
         <LocationSection report={report} />
@@ -342,8 +355,10 @@ export function ReportDetailPanel({
   className,
   error,
   isPending,
+  onSelectAgency,
   onClose,
   report,
+  selectedAgencyId,
 }: ReportDetailPanelProps) {
   if (isPending) {
     return (
@@ -387,7 +402,9 @@ export function ReportDetailPanel({
     <LoadedReportDetail
       className={className}
       onClose={onClose}
+      onSelectAgency={onSelectAgency}
       report={report}
+      selectedAgencyId={selectedAgencyId}
     />
   );
 }
