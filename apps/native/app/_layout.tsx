@@ -8,18 +8,39 @@ import {
 } from "@expo-google-fonts/plus-jakarta-sans";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import { hideAsync, preventAutoHideAsync } from "expo-splash-screen";
 import { HeroUINativeProvider } from "heroui-native";
 import { useEffect } from "react";
+import { StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import { AppThemeProvider } from "@/contexts/app-theme-context";
 import { IncidentProvider } from "@/features/emergency/context";
+import { ProfileGate } from "@/features/profile/components/profile-gate";
+import { ProfileProvider } from "@/features/profile/context";
 import { queryClient } from "@/utils/trpc";
 
 preventAutoHideAsync();
+
+const SCREEN_COLORS = {
+  call: "#12090b",
+  connecting: "#850817",
+  surface: "#f6f3f0",
+} as const;
+
+const getRouteBackgroundStyle = (pathname: string) => {
+  if (pathname === "/connecting") {
+    return styles.connectingRoot;
+  }
+
+  if (pathname === "/voice-session") {
+    return styles.callRoot;
+  }
+
+  return styles.surfaceRoot;
+};
 
 export const unstable_settings = {
   initialRouteName: "profile-setup",
@@ -30,15 +51,25 @@ function StackLayout() {
     <Stack
       screenOptions={{
         animation: "fade",
-        contentStyle: { backgroundColor: "#f6f3f0" },
+        contentStyle: { backgroundColor: SCREEN_COLORS.surface },
         headerShown: false,
+        navigationBarTranslucent: true,
+        statusBarTranslucent: true,
       }}
     >
       <Stack.Screen name="profile-setup" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="report-mode" />
-      <Stack.Screen name="connecting" />
-      <Stack.Screen name="voice-session" />
+      <Stack.Screen
+        name="connecting"
+        options={{
+          contentStyle: { backgroundColor: SCREEN_COLORS.connecting },
+        }}
+      />
+      <Stack.Screen
+        name="voice-session"
+        options={{ contentStyle: { backgroundColor: SCREEN_COLORS.call } }}
+      />
       <Stack.Screen name="chat" />
       <Stack.Screen name="dispatch" />
       <Stack.Screen name="arrival" />
@@ -48,6 +79,7 @@ function StackLayout() {
 }
 
 export default function Layout() {
+  const pathname = usePathname();
   const [fontsLoaded, fontError] = useFonts({
     PlusJakartaSans_400Regular,
     PlusJakartaSans_500Medium,
@@ -68,13 +100,23 @@ export default function Layout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <KeyboardProvider>
+      <GestureHandlerRootView
+        style={[styles.root, getRouteBackgroundStyle(pathname)]}
+      >
+        <KeyboardProvider
+          navigationBarTranslucent
+          preserveEdgeToEdge
+          statusBarTranslucent
+        >
           <AppThemeProvider>
             <HeroUINativeProvider>
-              <IncidentProvider>
-                <StackLayout />
-              </IncidentProvider>
+              <ProfileProvider>
+                <IncidentProvider>
+                  <ProfileGate>
+                    <StackLayout />
+                  </ProfileGate>
+                </IncidentProvider>
+              </ProfileProvider>
             </HeroUINativeProvider>
           </AppThemeProvider>
         </KeyboardProvider>
@@ -82,3 +124,18 @@ export default function Layout() {
     </QueryClientProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  callRoot: {
+    backgroundColor: SCREEN_COLORS.call,
+  },
+  connectingRoot: {
+    backgroundColor: SCREEN_COLORS.connecting,
+  },
+  root: {
+    flex: 1,
+  },
+  surfaceRoot: {
+    backgroundColor: SCREEN_COLORS.surface,
+  },
+});

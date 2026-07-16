@@ -5,8 +5,8 @@ import { SiagaScreen } from "@/components/siaga-screen";
 
 export function HistoryScreen() {
   return (
-    <SiagaScreen isScrollable>
-      <View className="gap-2 pt-4">
+    <SiagaScreen contentClassName="pt-[88px] pb-[140px]" isScrollable>
+      <View className="gap-2">
         <Text className="font-bold text-[27px] text-siaga-ink leading-9">
           Riwayat laporan
         </Text>

@@ -8,10 +8,24 @@
     },
     "name": "SIAGA",
     "slug": "siaga-app",
-    "plugins": ["expo-font", "expo-splash-screen", "expo-image"],
+    "plugins": [
+      "expo-font",
+      "expo-splash-screen",
+      "expo-image",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "SIAGA menggunakan lokasi Anda untuk mempercepat bantuan saat SOS."
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "android": {
+      "package": "com.anonymous.siagaapp"
     }
   }
 }

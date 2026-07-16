@@ -1,4 +1,5 @@
 import { Button as HeroButton } from "heroui-native";
+import { Pressable, Text } from "react-native";
 import { cn } from "@/lib/cn";
 
 interface SiagaButtonProps {
@@ -18,29 +19,41 @@ export function SiagaButton({
   onPress,
   tone = "primary",
 }: SiagaButtonProps) {
-  const variant = tone === "primary" ? "primary" : tone;
+  if (tone !== "primary") {
+    return (
+      <Pressable
+        accessibilityLabel={accessibilityLabel ?? children}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: isDisabled }}
+        className={cn(
+          "h-[54px] items-center justify-center rounded-xl",
+          tone === "outline"
+            ? "border border-siaga-primary bg-transparent"
+            : "bg-transparent",
+          isDisabled ? "opacity-50" : null,
+          className
+        )}
+        disabled={isDisabled}
+        onPress={onPress}
+      >
+        <Text className="font-semibold text-[14px] text-siaga-primary">
+          {children}
+        </Text>
+      </Pressable>
+    );
+  }
 
   return (
     <HeroButton
       accessibilityLabel={accessibilityLabel ?? children}
-      className={cn(
-        "h-[54px] rounded-xl",
-        tone === "primary" ? "bg-siaga-primary" : null,
-        tone === "outline" ? "border-siaga-primary bg-transparent" : null,
-        className
-      )}
+      className={cn("h-[54px] rounded-xl bg-siaga-primary", className)}
       feedbackVariant="scale-highlight"
       isDisabled={isDisabled}
       onPress={onPress}
       size="lg"
-      variant={variant}
+      variant="primary"
     >
-      <HeroButton.Label
-        className={cn(
-          "font-semibold text-[14px]",
-          tone === "primary" ? "text-white" : "text-siaga-primary"
-        )}
-      >
+      <HeroButton.Label className="font-semibold text-[14px] text-white">
         {children}
       </HeroButton.Label>
     </HeroButton>

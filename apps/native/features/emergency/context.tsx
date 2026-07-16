@@ -11,6 +11,7 @@ import type {
   ConnectionTarget,
   EmergencyCategory,
   IncidentContextValue,
+  IncidentLocation,
   IncidentPhase,
   IncidentState,
   ReportMode,
@@ -19,6 +20,7 @@ import type {
 const INITIAL_INCIDENT: IncidentState = {
   category: "Kriminal",
   connectionTarget: "ai",
+  location: null,
   mode: null,
   phase: "idle",
 };
@@ -44,6 +46,10 @@ export function IncidentProvider({ children }: PropsWithChildren) {
     setIncident((current) => ({ ...current, connectionTarget: target }));
   }, []);
 
+  const setLocation = useCallback((location: IncidentLocation) => {
+    setIncident((current) => ({ ...current, location }));
+  }, []);
+
   const setPhase = useCallback((phase: IncidentPhase) => {
     setIncident((current) => ({ ...current, phase }));
   }, []);
@@ -64,6 +70,7 @@ export function IncidentProvider({ children }: PropsWithChildren) {
       completeIncident,
       setCategory,
       setConnectionTarget,
+      setLocation,
       setMode,
       setPhase,
     }),
@@ -74,6 +81,7 @@ export function IncidentProvider({ children }: PropsWithChildren) {
       completeIncident,
       setCategory,
       setConnectionTarget,
+      setLocation,
       setMode,
       setPhase,
     ]

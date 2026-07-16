@@ -1,43 +1,38 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Input, Label, TextField } from "heroui-native";
+import { FieldError, Input, Label, TextField } from "heroui-native";
 import { useCallback, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
 import { SiagaButton } from "@/components/siaga-button";
 import { SiagaScreen } from "@/components/siaga-screen";
+import { useProfile } from "@/features/profile/context";
 import type { EmergencyProfile } from "@/features/profile/types";
-
-const INITIAL_PROFILE: EmergencyProfile = {
-  address: "",
-  age: "",
-  allergies: "",
-  bloodType: "",
-  conditions: "",
-  contactName: "",
-  contactPhone: "",
-  fullName: "",
-  language: "",
-  medications: "",
-  specialNeeds: "",
-};
+import {
+  type ProfileFieldErrors,
+  validateEmergencyProfile,
+} from "@/features/profile/validation";
 
 interface ProfileFieldProps {
+  error?: string;
   field: keyof EmergencyProfile;
   keyboardType?: "default" | "number-pad" | "phone-pad";
   label: string;
   multiline?: boolean;
   onChange: (field: keyof EmergencyProfile, value: string) => void;
   placeholder: string;
+  required?: boolean;
   value: string;
 }
 
 function ProfileField({
   field,
+  error,
   keyboardType = "default",
   label,
   multiline = false,
   onChange,
   placeholder,
+  required = false,
   value,
 }: ProfileFieldProps) {
   const handleChangeText = useCallback(
@@ -48,7 +43,7 @@ function ProfileField({
   );
 
   return (
-    <TextField>
+    <TextField isInvalid={Boolean(error)} isRequired={required}>
       <Label className="font-bold text-[13px] text-siaga-body">{label}</Label>
       <Input
         className={
@@ -61,9 +56,11 @@ function ProfileField({
         onChangeText={handleChangeText}
         placeholder={placeholder}
         placeholderTextColor="#8e8e8e"
+        testID={`${field}-input`}
         textAlignVertical={multiline ? "top" : "center"}
         value={value}
       />
+      {error ? <FieldError>{error}</FieldError> : null}
     </TextField>
   );
 }
@@ -71,79 +68,164 @@ function ProfileField({
 interface ProfileSectionProps {
   children: React.ReactNode;
   icon: "heart-outline" | "person" | "people";
+  subtitle?: string;
   title: string;
 }
 
-function ProfileSection({ children, icon, title }: ProfileSectionProps) {
+function ProfileSection({
+  children,
+  icon,
+  subtitle,
+  title,
+}: ProfileSectionProps) {
   return (
     <View className="gap-4 rounded-[14px] border border-siaga-border bg-white p-6">
-      <View className="flex-row items-center gap-2 border-siaga-border border-b pb-3">
-        <Ionicons color="#870000" name={icon} size={20} />
-        <Text className="font-semibold text-[22px] text-siaga-body">
-          {title}
-        </Text>
+      <View className="gap-1 border-siaga-border border-b pb-3">
+        <View className="flex-row items-center gap-2">
+          <Ionicons color="#870000" name={icon} size={20} />
+          <Text className="font-semibold text-[22px] text-siaga-body">
+            {title}
+          </Text>
+        </View>
+        {subtitle ? (
+          <Text className="text-[12px] text-siaga-muted leading-5">
+            {subtitle}
+          </Text>
+        ) : null}
       </View>
       {children}
     </View>
   );
 }
 
-export function ProfileScreen() {
-  const [profile, setProfile] = useState(INITIAL_PROFILE);
+interface ProfileScreenProps {
+  isOnboarding?: boolean;
+}
+
+export function ProfileScreen({ isOnboarding = false }: ProfileScreenProps) {
+  const { profile: savedProfile, saveProfile } = useProfile();
+  const [draftProfile, setDraftProfile] = useState<
+    EmergencyProfile | undefined
+  >();
+  const [fieldErrors, setFieldErrors] = useState<ProfileFieldErrors>({});
   const [isSaved, setIsSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const profile = draftProfile ?? savedProfile;
+  const readyButtonLabel = isOnboarding
+    ? "Simpan & masuk ke SIAGA"
+    : "Simpan Profil Darurat";
+  const saveButtonLabel = isSaving ? "Menyimpan..." : readyButtonLabel;
 
   const updateProfile = useCallback(
     (key: keyof EmergencyProfile, value: string) => {
       setIsSaved(false);
-      setProfile((current) => ({ ...current, [key]: value }));
+      setSaveError(null);
+      setFieldErrors((current) => ({ ...current, [key]: undefined }));
+      setDraftProfile((current) => ({
+        ...(current ?? savedProfile),
+        [key]: value,
+      }));
     },
-    []
+    [savedProfile]
   );
 
-  const handleSave = useCallback(() => {
-    setIsSaved(true);
-  }, []);
+  const handleSave = useCallback(async () => {
+    const validation = validateEmergencyProfile(profile);
+    if (!validation.success) {
+      setFieldErrors(validation.errors);
+      setSaveError("Lengkapi semua data wajib sebelum masuk ke SIAGA.");
+      setIsSaved(false);
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await saveProfile(validation.profile);
+      setDraftProfile(validation.profile);
+      setFieldErrors({});
+      setIsSaved(true);
+    } catch {
+      setSaveError(
+        "Profil belum dapat disimpan. Periksa perangkat lalu coba lagi."
+      );
+      setIsSaved(false);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [profile, saveProfile]);
 
   return (
-    <SiagaScreen contentClassName="gap-6 pb-10" isScrollable>
-      <Text className="pt-4 font-bold text-[27px] text-siaga-ink leading-9">
-        Siapkan info penting sebelum darurat
-      </Text>
+    <SiagaScreen
+      contentClassName={
+        isOnboarding
+          ? "gap-6 px-5 pt-14 pb-12"
+          : "gap-6 px-5 pt-[104px] pb-[140px]"
+      }
+      isScrollable
+    >
+      <View className="gap-2">
+        <Text className="font-bold text-[27px] text-siaga-ink leading-9">
+          Siapkan info penting sebelum darurat
+        </Text>
+        <Text className="text-[13px] text-siaga-muted leading-5">
+          {isOnboarding
+            ? "Lengkapi data wajib agar bantuan dapat dikirim dengan cepat dan tepat."
+            : "Perbarui data yang akan membantu SIAGA saat keadaan darurat."}
+        </Text>
+      </View>
 
-      <ProfileSection icon="person" title="Info Pribadi">
+      <ProfileSection
+        icon="person"
+        subtitle="Semua data pada bagian ini wajib diisi."
+        title="Info Pribadi"
+      >
         <ProfileField
+          error={fieldErrors.fullName}
           field="fullName"
           label="Nama Lengkap"
           onChange={updateProfile}
           placeholder="Nama sesuai KTP"
+          required
           value={profile.fullName}
         />
         <ProfileField
+          error={fieldErrors.age}
           field="age"
           keyboardType="number-pad"
           label="Umur"
           onChange={updateProfile}
           placeholder="Tahun"
+          required
           value={profile.age}
         />
         <ProfileField
+          error={fieldErrors.address}
           field="address"
           label="Alamat Rumah"
           multiline
           onChange={updateProfile}
           placeholder="Alamat lengkap"
+          required
           value={profile.address}
         />
         <ProfileField
+          error={fieldErrors.language}
           field="language"
           label="Bahasa Utama"
           onChange={updateProfile}
           placeholder="Contoh: Bahasa Indonesia"
+          required
           value={profile.language}
         />
       </ProfileSection>
 
-      <ProfileSection icon="heart-outline" title="Info Medis">
+      <ProfileSection
+        icon="heart-outline"
+        subtitle="Opsional, tetapi membantu petugas memberi penanganan yang aman."
+        title="Info Medis"
+      >
         <ProfileField
           field="bloodType"
           label="Golongan Darah"
@@ -181,33 +263,32 @@ export function ProfileScreen() {
         />
       </ProfileSection>
 
-      <ProfileSection icon="people" title="Kontak Darurat">
+      <ProfileSection
+        icon="people"
+        subtitle="Satu kontak aktif wajib diisi."
+        title="Kontak Darurat"
+      >
         <View className="gap-4 rounded-[14px] border border-siaga-border bg-siaga-surface p-4">
           <ProfileField
+            error={fieldErrors.contactName}
             field="contactName"
             label="Nama Kontak 1"
             onChange={updateProfile}
             placeholder="Nama"
+            required
             value={profile.contactName}
           />
           <ProfileField
+            error={fieldErrors.contactPhone}
             field="contactPhone"
             keyboardType="phone-pad"
             label="Nomor Telepon"
             onChange={updateProfile}
             placeholder="08xx..."
+            required
             value={profile.contactPhone}
           />
         </View>
-        <Pressable
-          accessibilityRole="button"
-          className="h-14 flex-row items-center justify-center gap-2 rounded-[14px] border-2 border-siaga-border border-dashed"
-        >
-          <Ionicons color="#870000" name="add" size={18} />
-          <Text className="font-bold text-[#870000] text-[13px]">
-            Tambah Kontak Darurat Lain
-          </Text>
-        </Pressable>
       </ProfileSection>
 
       <View className="flex-row items-center gap-3 rounded-[14px] border border-siaga-border bg-siaga-soft p-4">
@@ -217,9 +298,28 @@ export function ProfileScreen() {
         </Text>
       </View>
 
-      <SiagaButton onPress={handleSave}>Simpan Profil Darurat</SiagaButton>
+      {saveError ? (
+        <Text
+          accessibilityLiveRegion="polite"
+          className="text-center font-semibold text-[12px] text-red-200 leading-5"
+        >
+          {saveError}
+        </Text>
+      ) : null}
+      <SiagaButton
+        accessibilityLabel={
+          isOnboarding ? "Simpan dan masuk ke SIAGA" : "Simpan Profil Darurat"
+        }
+        isDisabled={isSaving}
+        onPress={handleSave}
+      >
+        {saveButtonLabel}
+      </SiagaButton>
       {isSaved ? (
-        <Text className="text-center font-semibold text-[12px] text-siaga-success">
+        <Text
+          accessibilityLiveRegion="polite"
+          className="text-center font-semibold text-[12px] text-siaga-success"
+        >
           Profil darurat tersimpan di perangkat.
         </Text>
       ) : null}

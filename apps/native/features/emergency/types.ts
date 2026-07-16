@@ -18,9 +18,17 @@ export type IncidentPhase =
   | "arrived"
   | "completed";
 
+export interface IncidentLocation {
+  accuracy: number | null;
+  address: string;
+  latitude: number;
+  longitude: number;
+}
+
 export interface IncidentState {
   category: EmergencyCategory | null;
   connectionTarget: ConnectionTarget;
+  location: IncidentLocation | null;
   mode: ReportMode | null;
   phase: IncidentPhase;
 }
@@ -31,6 +39,7 @@ export interface IncidentContextValue extends IncidentState {
   completeIncident: () => void;
   setCategory: (category: EmergencyCategory) => void;
   setConnectionTarget: (target: ConnectionTarget) => void;
+  setLocation: (location: IncidentLocation) => void;
   setMode: (mode: ReportMode) => void;
   setPhase: (phase: IncidentPhase) => void;
 }

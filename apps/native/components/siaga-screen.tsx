@@ -1,7 +1,6 @@
 import { cn } from "heroui-native";
 import type { PropsWithChildren, ReactNode } from "react";
-import { ScrollView, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { ScrollView, StyleSheet, View } from "react-native";
 
 interface SiagaScreenProps {
   className?: string;
@@ -22,11 +21,12 @@ export function SiagaScreen({
   const backgroundClass = isDark ? "bg-siaga-primary-dark" : "bg-siaga-surface";
 
   return (
-    <SafeAreaView className={cn("flex-1", backgroundClass, className)}>
+    <View className={cn("flex-1", backgroundClass, className)}>
       {isScrollable ? (
         <ScrollView
           className="flex-1"
           contentContainerClassName={cn("grow px-6 py-8", contentClassName)}
+          contentContainerStyle={styles.contentFrame}
           contentInsetAdjustmentBehavior="automatic"
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -34,11 +34,22 @@ export function SiagaScreen({
           {children}
         </ScrollView>
       ) : (
-        <View className={cn("flex-1 px-6 py-8", contentClassName)}>
+        <View
+          className={cn("flex-1 px-6 py-8", contentClassName)}
+          style={styles.contentFrame}
+        >
           {children}
         </View>
       )}
       {footer}
-    </SafeAreaView>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  contentFrame: {
+    alignSelf: "center",
+    maxWidth: 430,
+    width: "100%",
+  },
+});
