@@ -6,6 +6,10 @@ import { MetricCard } from "@/features/overview/components/metric-card";
 import { TicketCard } from "@/features/overview/components/ticket-card";
 import { metrics, tickets } from "@/features/overview/content";
 
+export const handle = {
+  dashboardSurface: "standard",
+} as const;
+
 export default function DashboardOverview() {
   return (
     <div>

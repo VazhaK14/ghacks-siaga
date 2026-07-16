@@ -2,6 +2,7 @@ import { Button } from "@siaga-app/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@siaga-app/ui/components/dropdown-menu";
@@ -24,9 +25,11 @@ export function ModeToggle() {
         <span className="sr-only">Toggle theme</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={handleSetLight}>Light</DropdownMenuItem>
-        <DropdownMenuItem onClick={handleSetDark}>Dark</DropdownMenuItem>
-        <DropdownMenuItem onClick={handleSetSystem}>System</DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={handleSetLight}>Light</DropdownMenuItem>
+          <DropdownMenuItem onClick={handleSetDark}>Dark</DropdownMenuItem>
+          <DropdownMenuItem onClick={handleSetSystem}>System</DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   );
