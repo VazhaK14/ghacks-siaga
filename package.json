@@ -22,8 +22,7 @@
       "@tanstack/react-form": "^1.33.0",
       "@types/react-dom": "^19.2.3",
       "tailwindcss": "^4.3.2",
-      "tailwind-merge": "^3.6.0",
-      "@better-auth/expo": "1.6.23"
+      "tailwind-merge": "^3.6.0"
     }
   },
   "type": "module",
@@ -31,7 +30,7 @@
     "dev": "turbo run dev",
     "build": "turbo run build",
     "check-types": "turbo run check-types",
-    "dev:native": "turbo run dev -F native",
+    "dev:citizen": "turbo run dev -F citizen",
     "dev:web": "turbo run dev -F web",
     "dev:server": "turbo run dev -F server",
     "db:push": "turbo run db:push -F @siaga-app/db",

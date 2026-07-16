@@ -1,0 +1,11 @@
+<svg
+  aria-label="SIAGA"
+  role="img"
+  viewBox="0 0 512 512"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <rect fill="#870000" height="512" rx="112" width="512" />
+  <circle cx="256" cy="256" fill="#ffffff" opacity="0.12" r="156" />
+  <circle cx="256" cy="256" fill="#ffffff" r="116" />
+  <path d="M232 166h48v66h66v48h-66v66h-48v-66h-66v-48h66z" fill="#870000" />
+</svg>

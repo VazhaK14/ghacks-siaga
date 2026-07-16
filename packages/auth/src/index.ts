@@ -1,4 +1,3 @@
-import { expo } from "@better-auth/expo";
 import { createPrismaClient } from "@siaga-app/db";
 import { env } from "@siaga-app/env/server";
 import { betterAuth } from "better-auth";
@@ -41,7 +40,6 @@ export function createAuth() {
       enabled: true,
     },
     plugins: [
-      expo(),
       admin({
         ac,
         adminRoles: ["OPERATOR"],
@@ -51,7 +49,7 @@ export function createAuth() {
     ],
     secret: env.BETTER_AUTH_SECRET,
 
-    trustedOrigins: [...env.CORS_ORIGIN, "siaga-app://", "exp://"],
+    trustedOrigins: [...env.CORS_ORIGIN],
   });
 }
 

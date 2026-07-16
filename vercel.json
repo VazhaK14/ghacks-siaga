@@ -8,6 +8,12 @@
       "installCommand": "cd ../.. && bun install",
       "buildCommand": "VITE_SERVER_URL=/api bun run build"
     },
+    "citizen": {
+      "root": "apps/citizen",
+      "framework": "react-router",
+      "installCommand": "cd ../.. && bun install",
+      "buildCommand": "VITE_SERVER_URL=/api bun run build"
+    },
     "server": {
       "root": "apps/server",
       "framework": "hono",
@@ -28,6 +34,18 @@
     }
   },
   "rewrites": [
+    {
+      "source": "/citizen",
+      "destination": {
+        "service": "citizen"
+      }
+    },
+    {
+      "source": "/citizen/(.*)",
+      "destination": {
+        "service": "citizen"
+      }
+    },
     {
       "source": "/api/(.*)",
       "destination": {

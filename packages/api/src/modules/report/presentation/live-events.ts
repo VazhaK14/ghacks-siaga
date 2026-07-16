@@ -1,3 +1,6 @@
+import { SendReportPushNotification } from "../../push/application/send-report-push-notification";
+import { PrismaPushSubscriptionRepository } from "../../push/infrastructure/prisma-push-subscription-repository";
+import { WebPushGateway } from "../../push/infrastructure/web-push-gateway";
 import type {
   ReportLiveEvent,
   ReportLiveEventListener,
@@ -5,8 +8,31 @@ import type {
 } from "../domain/report-live-event";
 import { getReportEventBus } from "../infrastructure/report-event-bus";
 
-export const publishReportLiveEvent = (event: ReportLiveEvent): Promise<void> =>
-  getReportEventBus().publish(event);
+const pushRepository = new PrismaPushSubscriptionRepository();
+const sendReportPushNotification = new SendReportPushNotification(
+  pushRepository,
+  new WebPushGateway()
+);
+
+interface PublishReportLiveEventOptions {
+  notifyReporter?: boolean;
+}
+
+export const publishReportLiveEvent = async (
+  event: ReportLiveEvent,
+  options: PublishReportLiveEventOptions = {}
+): Promise<void> => {
+  const eventResult = await Promise.allSettled([
+    getReportEventBus().publish(event),
+    options.notifyReporter
+      ? sendReportPushNotification.execute(event.reportId)
+      : Promise.resolve(),
+  ]);
+  const [liveEventResult] = eventResult;
+  if (liveEventResult?.status === "rejected") {
+    throw liveEventResult.reason;
+  }
+};
 
 export const subscribeToReportLiveEvents = (
   listener: ReportLiveEventListener,

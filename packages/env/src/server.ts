@@ -56,6 +56,9 @@ export const env = createEnv({
       .default("qwen/qwen3-next-80b-a3b-instruct:free"),
     UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional(),
     UPSTASH_REDIS_REST_URL: z.url().optional(),
+    VAPID_PRIVATE_KEY: z.string().min(1).optional(),
+    VAPID_PUBLIC_KEY: z.string().min(1).optional(),
+    VAPID_SUBJECT: z.string().min(1).default("mailto:admin@siaga.local"),
   },
   skipValidation: !!process.env.SKIP_ENV_VALIDATION,
 });
