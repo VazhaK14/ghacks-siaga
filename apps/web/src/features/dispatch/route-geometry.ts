@@ -1,4 +1,4 @@
-type RouteCoordinate = [longitude: number, latitude: number];
+import type { RouteCoordinate } from "./types";
 
 interface DispatchRouteEndpoints {
   agency: {
@@ -54,7 +54,8 @@ const interpolateProjectedSegment = (
 };
 
 export const buildDispatchRouteCoordinates = (
-  dispatch: DispatchRouteEndpoints
+  dispatch: DispatchRouteEndpoints,
+  roadRoute?: RouteCoordinate[]
 ): RouteCoordinate[] => {
   const start: RouteCoordinate = [
     dispatch.agency.longitude,
@@ -64,19 +65,21 @@ export const buildDispatchRouteCoordinates = (
     dispatch.destination.longitude,
     dispatch.destination.latitude,
   ];
-  const longitudeDelta = end[0] - start[0];
-  const latitudeDelta = end[1] - start[1];
-  const midpoint: RouteCoordinate = [
-    (start[0] + end[0]) / 2 - latitudeDelta * 0.12,
-    (start[1] + end[1]) / 2 + longitudeDelta * 0.12,
+  const fallbackLongitudeDelta = end[0] - start[0];
+  const fallbackLatitudeDelta = end[1] - start[1];
+  const fallbackMidpoint: RouteCoordinate = [
+    (start[0] + end[0]) / 2 - fallbackLatitudeDelta * 0.12,
+    (start[1] + end[1]) / 2 + fallbackLongitudeDelta * 0.12,
   ];
-
-  const outboundRoute: RouteCoordinate[] = [start, midpoint, end];
+  const fallbackRoute: RouteCoordinate[] = [start, fallbackMidpoint, end];
+  const outboundRoute = roadRoute
+    ? [start, ...roadRoute.slice(1, -1), end]
+    : fallbackRoute;
   const isReturning =
     dispatch.status === "RETURNING_TO_BASE" ||
     dispatch.status === "RETURNED_TO_BASE";
 
-  return isReturning ? outboundRoute.reverse() : outboundRoute;
+  return isReturning ? [...outboundRoute].reverse() : outboundRoute;
 };
 
 export const getCoordinateAlongRoute = (

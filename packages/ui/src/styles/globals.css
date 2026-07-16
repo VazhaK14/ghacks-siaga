@@ -83,6 +83,87 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+.semi-transparent {
+  --background: oklch(0.145 0 0 / 70%);
+  --foreground: oklch(0.97 0.015 250);
+  --card: oklch(0.205 0 0 / 54%);
+  --card-foreground: oklch(0.97 0.015 250);
+  --popover: oklch(0.205 0 0 / 60%);
+  --popover-foreground: oklch(0.97 0.015 250);
+  --secondary: oklch(1 0 0 / 12%);
+  --secondary-foreground: oklch(0.97 0.015 250);
+  --muted: oklch(1 0 0 / 10%);
+  --muted-foreground: oklch(0.78 0.025 250);
+  --accent: oklch(1 0 0 / 16%);
+  --accent-foreground: oklch(0.99 0.01 250);
+  --border: oklch(1 0 0 / 18%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.78 0.08 250);
+  --sidebar: oklch(0.145 0 0 / 48%);
+  --sidebar-foreground: oklch(0.97 0.015 250);
+  --sidebar-primary: #ff6969;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: oklch(1 0 0 / 14%);
+  --sidebar-accent-foreground: oklch(0.99 0.01 250);
+  --sidebar-border: oklch(1 0 0 / 18%);
+  --sidebar-ring: oklch(0.78 0.08 250);
+}
+
+.semi-transparent [data-slot="card"],
+.semi-transparent [data-slot="sidebar-inner"] {
+  background-color: var(--card) !important;
+  border: 1px solid oklch(1 0 0 / 24%);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 32%),
+    inset 0 -1px 0 oklch(0.05 0.02 265 / 24%),
+    0 22px 56px oklch(0.05 0.02 265 / 34%);
+  backdrop-filter: blur(34px) saturate(190%);
+}
+
+.semi-transparent [data-slot="sidebar-inner"] {
+  background-color: var(--popover) !important;
+}
+
+.semi-transparent [data-slot="popover"],
+.semi-transparent [data-slot="dialog-content"],
+.semi-transparent [data-slot="sheet-content"] {
+  background-color: var(--popover) !important;
+  border: 1px solid oklch(1 0 0 / 24%);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 32%),
+    0 22px 56px oklch(0.05 0.02 265 / 34%);
+  backdrop-filter: blur(34px) saturate(190%);
+}
+
+.semi-transparent [data-slot="sidebar-wrapper"],
+.semi-transparent [data-slot="sidebar-inset"] {
+  background-color: transparent !important;
+}
+
+.semi-transparent [class*="text-neutral-"],
+.semi-transparent [class*="text-muted-foreground"] {
+  color: var(--foreground) !important;
+}
+
+.semi-transparent [data-slot="card-description"],
+.semi-transparent [data-slot="dropdown-menu-item"] {
+  color: var(--muted-foreground);
+}
+
+.semi-transparent [data-map-panel-toggle] {
+  color: var(--color-primary-300) !important;
+  background-color: oklch(1 0 0 / 98%) !important;
+  border-color: oklch(0.62 0.24 25 / 72%) !important;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0),
+    0 6px 18px oklch(0 0 0 / 34%) !important;
+}
+
+.semi-transparent [data-map-panel-toggle]:hover {
+  color: var(--color-primary-400) !important;
+  background-color: oklch(0.95 0.02 25) !important;
+}
+
 @theme inline {
   --font-sans: "Plus Jakarta Sans", sans-serif;
 
@@ -253,4 +334,15 @@
   html {
     @apply font-sans;
   }
+}
+
+.maplibregl-map:fullscreen {
+  --map-control-left-offset: 1rem !important;
+  --map-control-top-offset: 1rem !important;
+}
+
+.semi-transparent body {
+  min-height: 100%;
+  background: oklch(0.08 0 0);
+  background-attachment: fixed;
 }

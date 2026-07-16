@@ -7,7 +7,7 @@ import {
 } from "@siaga-app/ui/components/empty";
 import { Skeleton } from "@siaga-app/ui/components/skeleton";
 import { cn } from "@siaga-app/ui/lib/utils";
-import { LoaderCircleIcon } from "lucide-react";
+import { ChevronRightIcon, LoaderCircleIcon } from "lucide-react";
 
 import { LIVE_STATUS_CONFIG } from "../content";
 import type {
@@ -27,6 +27,7 @@ interface ReportQueuePanelProps {
   isPending: boolean;
   onLoadMore: () => void;
   onSelectReport: (reportId: string) => void;
+  onToggleVisibility?: () => void;
   reports: ActiveReportListItem[];
   selectedReportId: string | null;
 }
@@ -51,6 +52,7 @@ export function ReportQueuePanel({
   isPending,
   onLoadMore,
   onSelectReport,
+  onToggleVisibility,
   reports,
   selectedReportId,
 }: ReportQueuePanelProps) {
@@ -73,12 +75,32 @@ export function ReportQueuePanel({
             {activeCount} laporan aktif
           </span>
         </span>
-        <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-          <span
-            aria-hidden
-            className={cn("size-2 rounded-full", liveStatus.dotClassName)}
-          />
-          {liveStatus.label}
+        <span className="flex flex-col items-end gap-2">
+          {onToggleVisibility ? (
+            <Button
+              aria-label="Sembunyikan daftar laporan"
+              className="size-7 rounded-md border border-neutral-300 bg-white p-0 text-neutral-1000 shadow-sm hover:bg-neutral-200 focus-visible:ring-2 focus-visible:ring-neutral-700/40"
+              data-map-panel-toggle
+              onClick={onToggleVisibility}
+              size="icon-sm"
+              title="Sembunyikan daftar laporan"
+              type="button"
+              variant="secondary"
+            >
+              <ChevronRightIcon
+                aria-hidden
+                className="size-4"
+                strokeWidth={3}
+              />
+            </Button>
+          ) : null}
+          <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <span
+              aria-hidden
+              className={cn("size-2 rounded-full", liveStatus.dotClassName)}
+            />
+            {liveStatus.label}
+          </span>
         </span>
       </header>
 

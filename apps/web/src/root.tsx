@@ -55,6 +55,7 @@ export default function App() {
         defaultTheme="dark"
         disableTransitionOnChange
         storageKey="vite-ui-theme"
+        themes={["light", "dark", "semi-transparent"]}
       >
         <Outlet />
         <Toaster richColors />

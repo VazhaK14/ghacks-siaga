@@ -17,6 +17,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@siaga-app/ui/components/sidebar";
+import { cn } from "@siaga-app/ui/lib/utils";
 import {
   ClipboardListIcon,
   GaugeIcon,
@@ -29,7 +30,6 @@ import {
 } from "lucide-react";
 import { useCallback } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router";
-
 import { authClient } from "@/lib/auth-client";
 import { getInitials } from "@/lib/get-initials";
 
@@ -51,7 +51,13 @@ interface DashboardSidebarUser {
 const NAV_MENU_BUTTON_CLASSNAME =
   "rounded-md px-3 text-sidebar-foreground hover:bg-muted hover:text-foreground data-active:bg-primary-10 data-active:font-semibold data-active:text-primary-300 data-active:hover:bg-primary-10 data-active:hover:text-primary-300";
 
-export function DashboardSidebar({ user }: { user: DashboardSidebarUser }) {
+export function DashboardSidebar({
+  className,
+  user,
+}: {
+  className?: string;
+  user: DashboardSidebarUser;
+}) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -67,7 +73,10 @@ export function DashboardSidebar({ user }: { user: DashboardSidebarUser }) {
 
   return (
     <Sidebar
-      className="z-20 border-none bg-transparent p-4 [&_[data-slot=sidebar-inner]]:rounded-md [&_[data-slot=sidebar-inner]]:bg-popover/95 [&_[data-slot=sidebar-inner]]:shadow-xl [&_[data-slot=sidebar-inner]]:ring-1 [&_[data-slot=sidebar-inner]]:ring-foreground/10 [&_[data-slot=sidebar-inner]]:backdrop-blur-sm"
+      className={cn(
+        "z-20 border-none bg-transparent p-4 transition-[transform,opacity] duration-300 [&_[data-slot=sidebar-inner]]:rounded-md [&_[data-slot=sidebar-inner]]:bg-popover/95 [&_[data-slot=sidebar-inner]]:shadow-xl [&_[data-slot=sidebar-inner]]:ring-1 [&_[data-slot=sidebar-inner]]:ring-foreground/10 [&_[data-slot=sidebar-inner]]:backdrop-blur-sm",
+        className
+      )}
       collapsible="offcanvas"
       variant="floating"
     >

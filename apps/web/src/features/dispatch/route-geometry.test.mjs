@@ -49,6 +49,22 @@ describe("dispatch route geometry", () => {
     expect(getCoordinateAlongRoute(coordinates, 2)).toEqual(coordinates.at(-1));
   });
 
+  it("uses road routing geometry while preserving the dispatch endpoints", () => {
+    const roadRoute = [
+      [106.8001, -6.2001],
+      [106.805, -6.204],
+      [106.83, -6.181],
+      [106.8399, -6.1801],
+    ];
+
+    expect(buildDispatchRouteCoordinates(dispatch, roadRoute)).toEqual([
+      [dispatch.agency.longitude, dispatch.agency.latitude],
+      roadRoute[1],
+      roadRoute[2],
+      [dispatch.destination.longitude, dispatch.destination.latitude],
+    ]);
+  });
+
   it("reverses the route while a unit returns to base", () => {
     const outboundCoordinates = buildDispatchRouteCoordinates(dispatch);
     const returnCoordinates = buildDispatchRouteCoordinates({

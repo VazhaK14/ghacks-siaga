@@ -16,6 +16,7 @@ import type {
 } from "maplibre-gl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MapView, {
+  AttributionControl,
   FullscreenControl,
   GeolocateControl,
   Layer,
@@ -32,6 +33,7 @@ import { buildDispatchRouteCoordinates } from "@/features/dispatch/route-geometr
 import type {
   DispatchAgency,
   DispatchTracking,
+  RouteCoordinate,
 } from "@/features/dispatch/types";
 import { getReportTitle } from "../content";
 import type {
@@ -80,6 +82,18 @@ const REPORT_COLOR_EXPRESSION: ExpressionSpecification = [
 ];
 
 const getCameraPadding = (layout: MapWorkspaceLayout) => {
+  if (
+    layout === "monitor-collapsed" &&
+    window.innerWidth >= DESKTOP_PANEL_BREAKPOINT
+  ) {
+    return {
+      bottom: 32,
+      left: 272,
+      right: 416,
+      top: 32,
+    };
+  }
+
   if (window.innerWidth >= DESKTOP_PANEL_BREAKPOINT) {
     return layout === "monitor" || layout === "units"
       ? {
@@ -94,6 +108,15 @@ const getCameraPadding = (layout: MapWorkspaceLayout) => {
           right: 32,
           top: 32,
         };
+  }
+
+  if (layout === "monitor-collapsed") {
+    return {
+      bottom: 32,
+      left: 272,
+      right: 416,
+      top: 32,
+    };
   }
 
   if (window.innerWidth >= SIDEBAR_BREAKPOINT) {
@@ -164,11 +187,14 @@ function AgencyMarker({
   );
 }
 
-const buildRouteGeoJson = (dispatch: DispatchTracking) => ({
+const buildRouteGeoJson = (
+  dispatch: DispatchTracking,
+  roadRoute?: RouteCoordinate[]
+) => ({
   features: [
     {
       geometry: {
-        coordinates: buildDispatchRouteCoordinates(dispatch),
+        coordinates: buildDispatchRouteCoordinates(dispatch, roadRoute),
         type: "LineString" as const,
       },
       properties: {},
@@ -194,12 +220,18 @@ const buildReportsGeoJson = (points: ReportMapPoint[]) => ({
   type: "FeatureCollection" as const,
 });
 
-function DispatchRoute({ dispatch }: { dispatch: DispatchTracking }) {
+function DispatchRoute({
+  dispatch,
+  roadRoute,
+}: {
+  dispatch: DispatchTracking;
+  roadRoute?: RouteCoordinate[];
+}) {
   const typeConfig = AGENCY_TYPE_CONFIG[dispatch.agency.type];
 
   return (
     <Source
-      data={buildRouteGeoJson(dispatch)}
+      data={buildRouteGeoJson(dispatch, roadRoute)}
       id={`dispatch-route-${dispatch.id}`}
       type="geojson"
     >
@@ -250,6 +282,7 @@ function DispatchVehicleMarker({ dispatch }: { dispatch: DispatchTracking }) {
 
 export function MapCanvas({
   agencies,
+  dispatchRoutes,
   dispatches,
   layout,
   onSelectAgency,
@@ -261,7 +294,27 @@ export function MapCanvas({
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapKey, setMapKey] = useState(0);
   const mapRef = useRef<MapRef>(null);
+  const [isMapFullscreen, setIsMapFullscreen] = useState(false);
   const [isReportHovering, setIsReportHovering] = useState(false);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const mapContainer = mapRef.current?.getMap().getContainer();
+      const { fullscreenElement } = document;
+      setIsMapFullscreen(
+        Boolean(
+          mapContainer &&
+            fullscreenElement &&
+            (fullscreenElement === mapContainer ||
+              fullscreenElement.contains(mapContainer))
+        )
+      );
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () =>
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
   const selectedPoint = points.find((point) => point.id === selectedReportId);
   const selectedAgency = agencies.find(
     (agency) => agency.id === selectedAgencyId
@@ -406,10 +459,12 @@ export function MapCanvas({
       className={cn(
         "size-full min-h-0 overflow-hidden bg-neutral-300 [--map-control-left-offset:0px] [--map-control-top-offset:3rem] md:[--map-control-left-offset:16rem] md:[--map-control-top-offset:1rem]",
         (layout === "monitor" || layout === "units") &&
-          "xl:[--map-control-left-offset:39rem]"
+          "xl:[--map-control-left-offset:39rem]",
+        layout === "monitor-collapsed" && "xl:[--map-control-left-offset:17rem]"
       )}
     >
       <MapView
+        attributionControl={false}
         cursor={isReportHovering ? "pointer" : "grab"}
         dragRotate={false}
         initialViewState={JAKARTA_VIEW_STATE}
@@ -521,7 +576,11 @@ export function MapCanvas({
           />
         </Source>
         {dispatches.map((dispatch) => (
-          <DispatchRoute dispatch={dispatch} key={`route-${dispatch.id}`} />
+          <DispatchRoute
+            dispatch={dispatch}
+            key={`route-${dispatch.id}`}
+            roadRoute={dispatchRoutes[dispatch.id]}
+          />
         ))}
         {agencies.map((agency) => (
           <AgencyMarker
@@ -542,7 +601,9 @@ export function MapCanvas({
           position="top-left"
           showCompass={false}
           style={{
-            marginLeft: "var(--map-control-left-offset)",
+            marginLeft: isMapFullscreen
+              ? "0.5rem"
+              : "var(--map-control-left-offset)",
             marginTop: "var(--map-control-top-offset)",
           }}
         />
@@ -551,18 +612,35 @@ export function MapCanvas({
           positionOptions={{ enableHighAccuracy: true }}
           showAccuracyCircle
           showUserLocation
-          style={{ marginLeft: "var(--map-control-left-offset)" }}
+          style={{
+            marginLeft: isMapFullscreen
+              ? "0.5rem"
+              : "var(--map-control-left-offset)",
+          }}
           trackUserLocation={false}
         />
         <FullscreenControl
           position="top-left"
-          style={{ marginLeft: "var(--map-control-left-offset)" }}
+          style={{
+            marginLeft: isMapFullscreen
+              ? "0.5rem"
+              : "var(--map-control-left-offset)",
+          }}
         />
         <ScaleControl
           maxWidth={120}
           position="bottom-left"
-          style={{ marginLeft: "var(--map-control-left-offset)" }}
+          style={{
+            marginLeft: isMapFullscreen
+              ? "0.5rem"
+              : "var(--map-control-left-offset)",
+          }}
           unit="metric"
+        />
+        <AttributionControl
+          compact
+          customAttribution="© OpenFreeMap · © OpenStreetMap"
+          position="bottom-right"
         />
       </MapView>
     </div>
