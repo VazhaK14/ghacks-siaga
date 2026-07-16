@@ -16,6 +16,7 @@
   --font-normal: "PlusJakartaSans_400Regular";
   --font-medium: "PlusJakartaSans_500Medium";
   --font-semibold: "PlusJakartaSans_600SemiBold";
+  --font-bold: "PlusJakartaSans_700Bold";
   --font-extrabold: "PlusJakartaSans_800ExtraBold";
 
   /* Text */
@@ -130,6 +131,23 @@
   --color-green-100: #84ebb4;
   --color-green-200: #1fc16b;
   --color-green-10: color-mix(in srgb, #1fc16b 10%, transparent);
+
+  /* SIAGA Pelapor — Figma source palette */
+  --color-siaga-surface: #f6f3f0;
+  --color-siaga-panel: #ffffff;
+  --color-siaga-primary: #d72638;
+  --color-siaga-primary-dark: #850817;
+  --color-siaga-priority: #7a0c18;
+  --color-siaga-soft: #fff0f1;
+  --color-siaga-ink: #201b1c;
+  --color-siaga-body: #241f20;
+  --color-siaga-muted: #71696a;
+  --color-siaga-muted-strong: #776f72;
+  --color-siaga-border: #ded7d3;
+  --color-siaga-border-soft: #e9e3df;
+  --color-siaga-input: #fcf9f8;
+  --color-siaga-success: #2e8b64;
+  --color-siaga-success-soft: #eaf7f0;
 }
 
 /*
@@ -139,7 +157,12 @@
  */
 @layer theme {
   @variant light {
-    --accent: #870000;
+    --background: #f6f3f0;
+    --foreground: #201b1c;
+    --surface: #ffffff;
+    --surface-foreground: #241f20;
+    --muted: #71696a;
+    --accent: #d72638;
     --accent-foreground: #ffffff;
     --danger: #d00416;
     --danger-foreground: #ffffff;
@@ -150,7 +173,12 @@
   }
 
   @variant dark {
-    --accent: #870000;
+    --background: #f6f3f0;
+    --foreground: #201b1c;
+    --surface: #ffffff;
+    --surface-foreground: #241f20;
+    --muted: #71696a;
+    --accent: #d72638;
     --accent-foreground: #ffffff;
     --danger: #d00416;
     --danger-foreground: #ffffff;

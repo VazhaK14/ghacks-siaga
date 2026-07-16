@@ -3,6 +3,7 @@ import {
   PlusJakartaSans_400Regular,
   PlusJakartaSans_500Medium,
   PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
   PlusJakartaSans_800ExtraBold,
 } from "@expo-google-fonts/plus-jakarta-sans";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -15,23 +16,33 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import { AppThemeProvider } from "@/contexts/app-theme-context";
+import { IncidentProvider } from "@/features/emergency/context";
 import { queryClient } from "@/utils/trpc";
 
 preventAutoHideAsync();
 
 export const unstable_settings = {
-  initialRouteName: "(drawer)",
+  initialRouteName: "profile-setup",
 };
 
 function StackLayout() {
   return (
-    <Stack screenOptions={{}}>
-      <Stack.Screen name="(drawer)" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="modal"
-        options={{ presentation: "modal", title: "Modal" }}
-      />
-      <Stack.Screen name="ds" options={{ title: "Design System" }} />
+    <Stack
+      screenOptions={{
+        animation: "fade",
+        contentStyle: { backgroundColor: "#f6f3f0" },
+        headerShown: false,
+      }}
+    >
+      <Stack.Screen name="profile-setup" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="report-mode" />
+      <Stack.Screen name="connecting" />
+      <Stack.Screen name="voice-session" />
+      <Stack.Screen name="chat" />
+      <Stack.Screen name="dispatch" />
+      <Stack.Screen name="arrival" />
+      <Stack.Screen name="complete" />
     </Stack>
   );
 }
@@ -41,6 +52,7 @@ export default function Layout() {
     PlusJakartaSans_400Regular,
     PlusJakartaSans_500Medium,
     PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
     PlusJakartaSans_800ExtraBold,
   });
 
@@ -60,7 +72,9 @@ export default function Layout() {
         <KeyboardProvider>
           <AppThemeProvider>
             <HeroUINativeProvider>
-              <StackLayout />
+              <IncidentProvider>
+                <StackLayout />
+              </IncidentProvider>
             </HeroUINativeProvider>
           </AppThemeProvider>
         </KeyboardProvider>
