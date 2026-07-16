@@ -1,17 +1,56 @@
-import { Card } from "@siaga-app/ui/components/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@siaga-app/ui/components/card";
+import { cn } from "@siaga-app/ui/lib/utils";
+import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 
-import type { Metric } from "../content";
+interface MetricCardProps {
+  description: ReactNode;
+  icon: LucideIcon;
+  label: string;
+  tone: "critical" | "neutral" | "success" | "warning";
+  value: ReactNode;
+}
 
-export function MetricCard({ metric }: { metric: Metric }) {
+const TONE_CONFIG = {
+  critical: "bg-destructive/15 text-destructive",
+  neutral: "bg-muted text-muted-foreground",
+  success: "bg-success/15 text-success",
+  warning: "bg-warning/15 text-warning",
+} as const;
+
+export function MetricCard({
+  description,
+  icon: Icon,
+  label,
+  tone,
+  value,
+}: MetricCardProps) {
   return (
-    <Card className="rounded-xl p-5">
-      <div className="flex items-center gap-3">
-        <span className={`size-2.5 shrink-0 rounded-full ${metric.dot}`} />
-        <span className="font-extrabold text-2xl text-neutral-1000">
-          {metric.value}
+    <Card className="gap-3 rounded-lg py-4">
+      <CardHeader className="grid grid-cols-[1fr_auto] items-start px-4">
+        <CardTitle className="text-muted-foreground text-xs">{label}</CardTitle>
+        <span
+          className={cn(
+            "flex size-8 items-center justify-center rounded-md",
+            TONE_CONFIG[tone]
+          )}
+        >
+          <Icon aria-hidden className="size-4" />
         </span>
-      </div>
-      <p className="mt-3 text-[10px] text-neutral-700">{metric.label}</p>
+      </CardHeader>
+      <CardContent className="px-4">
+        <p className="font-bold text-2xl text-foreground tabular-nums">
+          {value}
+        </p>
+        <div className="mt-1 text-[10px] text-muted-foreground">
+          {description}
+        </div>
+      </CardContent>
     </Card>
   );
 }

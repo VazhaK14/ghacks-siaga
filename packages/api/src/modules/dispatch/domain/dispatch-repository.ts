@@ -16,8 +16,9 @@ export interface CreateDispatchInput {
 export interface TransitionDispatchInput {
   at: Date;
   dispatchId: string;
+  estimatedReturnAt?: Date;
   expectedStatus: DispatchRecord["status"];
-  nextReportStatus: string;
+  nextReportStatus: string | null;
   nextStatus: DispatchRecord["status"];
   note: string;
 }

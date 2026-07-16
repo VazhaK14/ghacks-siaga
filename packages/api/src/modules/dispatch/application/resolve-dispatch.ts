@@ -26,10 +26,14 @@ export class ResolveDispatch {
         "Dispatch tidak ditemukan"
       );
     }
-    if (dispatch.status !== "ARRIVED") {
+    const requiredStatus =
+      dispatch.agency.type === "AMBULANCE" ? "RETURNED_TO_BASE" : "ARRIVED";
+    if (dispatch.status !== requiredStatus) {
       throw new DispatchApplicationError(
         "BAD_REQUEST",
-        "Laporan hanya dapat diselesaikan setelah unit tiba"
+        dispatch.agency.type === "AMBULANCE"
+          ? "Laporan hanya dapat diselesaikan setelah ambulans kembali ke rumah sakit"
+          : "Laporan hanya dapat diselesaikan setelah unit tiba"
       );
     }
 

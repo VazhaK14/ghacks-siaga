@@ -102,6 +102,14 @@ export const DISPATCH_STATUS_CONFIG = {
     label: "Menghubungi unit",
     progressLabel: "Menunggu konfirmasi unit",
   },
+  RETURNED_TO_BASE: {
+    label: "Tiba di rumah sakit",
+    progressLabel: "Ambulans siap menyelesaikan laporan",
+  },
+  RETURNING_TO_BASE: {
+    label: "Kembali ke rumah sakit",
+    progressLabel: "Ambulans sedang dalam perjalanan pulang",
+  },
 } as const satisfies Record<
   DispatchStatus,
   { label: string; progressLabel: string }

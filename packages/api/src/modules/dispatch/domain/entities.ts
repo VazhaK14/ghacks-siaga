@@ -22,6 +22,8 @@ export const DISPATCH_STATUSES = [
   "ACKNOWLEDGED",
   "EN_ROUTE",
   "ARRIVED",
+  "RETURNING_TO_BASE",
+  "RETURNED_TO_BASE",
   "COMPLETED",
   "CANCELLED",
 ] as const;
@@ -73,10 +75,13 @@ export interface DispatchRecord {
   dispatchedByOperatorId: string;
   enRouteAt: Date | null;
   estimatedArrivalAt: Date | null;
+  estimatedReturnAt: Date | null;
   id: string;
   notes: string | null;
   reportId: string;
   requestedAt: Date;
+  returnedAt: Date | null;
+  returnStartedAt: Date | null;
   status: DispatchStatus;
   unitCode: string | null;
 }
@@ -92,11 +97,14 @@ export interface DispatchTracking {
   destination: DispatchDestination;
   enRouteAt: string | null;
   estimatedArrivalAt: string | null;
+  estimatedReturnAt: string | null;
   id: string;
   notes: string | null;
   progressPercent: number;
   reportId: string;
   requestedAt: string;
+  returnedAt: string | null;
+  returnStartedAt: string | null;
   status: DispatchStatus;
   unitCode: string | null;
 }
@@ -120,6 +128,8 @@ export interface DispatchReportContext {
 
 export interface ReportDispatchOverview {
   activeDispatch: DispatchTracking | null;
+  canDispatch: boolean;
+  dispatchBlockReason: string | null;
   incidentType: DispatchIncidentType | null;
   recommendations: DispatchAgencyRecommendation[];
   reportId: string;

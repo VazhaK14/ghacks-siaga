@@ -35,8 +35,8 @@ import { getInitials } from "@/lib/get-initials";
 
 const NAV_ITEMS = [
   { icon: GaugeIcon, label: "Dashboard", to: "/" },
-  { icon: MapPinnedIcon, label: "Map Monitor", to: "/map-monitor" },
-  { icon: ClipboardListIcon, label: "Laporan", to: "/laporan" },
+  { icon: MapPinnedIcon, label: "Laporan Aktif", to: "/map-monitor" },
+  { icon: ClipboardListIcon, label: "Riwayat Laporan", to: "/laporan" },
   { icon: SirenIcon, label: "Unit Respons", to: "/unit-respons" },
   { icon: UsersIcon, label: "Operator", to: "/operators" },
   { icon: SettingsIcon, label: "Pengaturan", to: "/pengaturan" },

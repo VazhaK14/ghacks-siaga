@@ -78,10 +78,13 @@ describe("dispatch rules", () => {
       dispatchedByOperatorId: "operator",
       enRouteAt: startedAt,
       estimatedArrivalAt: new Date("2026-07-16T10:00:20.000Z"),
+      estimatedReturnAt: null,
       id: "dispatch",
       notes: null,
       reportId: "report",
       requestedAt: startedAt,
+      returnedAt: null,
+      returnStartedAt: null,
       status: "EN_ROUTE",
       unitCode: "POL-001",
     };
@@ -94,5 +97,56 @@ describe("dispatch rules", () => {
     expect(tracking.progressPercent).toBe(50);
     expect(tracking.currentLatitude).toBeCloseTo(-6.21);
     expect(tracking.currentLongitude).toBeCloseTo(106.83);
+  });
+
+  test("tracks an ambulance returning to base before it can resolve", () => {
+    const startedAt = new Date("2026-07-16T10:00:30.000Z");
+    const dispatch: DispatchRecord = {
+      acknowledgedAt: startedAt,
+      agency: agencies[1] as DispatchAgency,
+      arrivedAt: startedAt,
+      completedAt: null,
+      destination: {
+        address: "Tujuan",
+        latitude: -6.22,
+        longitude: 106.84,
+        title: "Laporan",
+      },
+      dispatchedByOperatorId: "operator",
+      enRouteAt: startedAt,
+      estimatedArrivalAt: startedAt,
+      estimatedReturnAt: new Date("2026-07-16T10:00:50.000Z"),
+      id: "ambulance-dispatch",
+      notes: null,
+      reportId: "report",
+      requestedAt: startedAt,
+      returnedAt: null,
+      returnStartedAt: startedAt,
+      status: "RETURNING_TO_BASE",
+      unitCode: "AMB-001",
+    };
+
+    const tracking = toDispatchTracking(
+      dispatch,
+      new Date("2026-07-16T10:00:40.000Z")
+    );
+
+    expect(tracking.canResolve).toBe(false);
+    expect(tracking.progressPercent).toBe(50);
+    expect(tracking.currentLatitude).toBeCloseTo(-6.2105);
+    expect(tracking.currentLongitude).toBeCloseTo(106.8305);
+
+    const returnedTracking = toDispatchTracking(
+      {
+        ...dispatch,
+        returnedAt: new Date("2026-07-16T10:00:50.000Z"),
+        status: "RETURNED_TO_BASE",
+      },
+      new Date("2026-07-16T10:00:50.000Z")
+    );
+
+    expect(returnedTracking.canResolve).toBe(true);
+    expect(returnedTracking.currentLatitude).toBe(dispatch.agency.latitude);
+    expect(returnedTracking.currentLongitude).toBe(dispatch.agency.longitude);
   });
 });

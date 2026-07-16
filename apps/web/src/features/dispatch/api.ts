@@ -41,18 +41,27 @@ export function useCreateDispatchMutation() {
   );
 }
 
-export function useResolveDispatchMutation() {
+export function useResolveDispatchMutation(
+  onReportResolved: (reportId: string) => void
+) {
   const queryClient = useQueryClient();
 
   return useMutation(
     trpc.dispatch.resolve.mutationOptions({
-      onSuccess: async () => {
+      onSuccess: async (dispatch) => {
+        onReportResolved(dispatch.reportId);
         await Promise.all([
           queryClient.invalidateQueries({
             queryKey: trpc.dispatch.pathKey(),
           }),
           queryClient.invalidateQueries({
-            queryKey: trpc.report.pathKey(),
+            queryKey: trpc.report.listActive.pathKey(),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: trpc.report.listActiveMapPoints.pathKey(),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: trpc.report.listArchived.pathKey(),
           }),
         ]);
       },

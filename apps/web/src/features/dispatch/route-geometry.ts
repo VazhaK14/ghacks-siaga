@@ -9,6 +9,7 @@ interface DispatchRouteEndpoints {
     latitude: number;
     longitude: number;
   };
+  status?: string;
 }
 
 const MAX_MERCATOR_LATITUDE = 85.051_129;
@@ -70,7 +71,12 @@ export const buildDispatchRouteCoordinates = (
     (start[1] + end[1]) / 2 + longitudeDelta * 0.12,
   ];
 
-  return [start, midpoint, end];
+  const outboundRoute: RouteCoordinate[] = [start, midpoint, end];
+  const isReturning =
+    dispatch.status === "RETURNING_TO_BASE" ||
+    dispatch.status === "RETURNED_TO_BASE";
+
+  return isReturning ? outboundRoute.reverse() : outboundRoute;
 };
 
 export const getCoordinateAlongRoute = (

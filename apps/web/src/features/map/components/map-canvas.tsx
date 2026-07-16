@@ -8,8 +8,13 @@ import {
   EmptyTitle,
 } from "@siaga-app/ui/components/empty";
 import { cn } from "@siaga-app/ui/lib/utils";
-import { MapPinIcon, MapPinOffIcon, RefreshCwIcon } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { MapPinOffIcon, RefreshCwIcon } from "lucide-react";
+import type {
+  ExpressionSpecification,
+  GeoJSONSource,
+  MapLayerMouseEvent,
+} from "maplibre-gl";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MapView, {
   FullscreenControl,
   GeolocateControl,
@@ -28,7 +33,7 @@ import type {
   DispatchAgency,
   DispatchTracking,
 } from "@/features/dispatch/types";
-import { CATEGORY_CONFIG, getReportTitle } from "../content";
+import { getReportTitle } from "../content";
 import type {
   MapCanvasProps,
   MapWorkspaceLayout,
@@ -38,8 +43,10 @@ import type {
 import "maplibre-gl/dist/maplibre-gl.css";
 
 const JAKARTA_VIEW_STATE = {
+  bearing: 0,
   latitude: -6.2088,
   longitude: 106.8456,
+  pitch: 0,
   zoom: 11,
 } as const;
 
@@ -47,6 +54,30 @@ const MAP_STYLE_URL = "https://tiles.openfreemap.org/styles/liberty";
 const SELECTED_REPORT_ZOOM = 15;
 const SIDEBAR_BREAKPOINT = 768;
 const DESKTOP_PANEL_BREAKPOINT = 1280;
+const REPORTS_SOURCE_ID = "active-reports";
+const REPORT_CLUSTER_LAYER_ID = "report-clusters";
+const REPORT_CLUSTER_COUNT_LAYER_ID = "report-cluster-count";
+const REPORT_POINT_LAYER_ID = "report-points";
+const REPORT_WARNING_LAYER_ID = "report-warning-icons";
+const INTERACTIVE_REPORT_LAYER_IDS = [
+  REPORT_CLUSTER_LAYER_ID,
+  REPORT_POINT_LAYER_ID,
+  REPORT_WARNING_LAYER_ID,
+] as const;
+
+const REPORT_COLOR_EXPRESSION: ExpressionSpecification = [
+  "match",
+  ["get", "category"],
+  "CRITICAL",
+  "#d00416",
+  "HIGH",
+  "#d20000",
+  "MEDIUM",
+  "#ffdb43",
+  "LOW",
+  "#1fc16b",
+  "#777777",
+];
 
 const getCameraPadding = (layout: MapWorkspaceLayout) => {
   if (window.innerWidth >= DESKTOP_PANEL_BREAKPOINT) {
@@ -81,46 +112,6 @@ const getCameraPadding = (layout: MapWorkspaceLayout) => {
     top: 72,
   };
 };
-
-interface ReportMarkerProps {
-  isSelected: boolean;
-  onSelectReport: (reportId: string) => void;
-  point: ReportMapPoint;
-}
-
-function ReportMarker({
-  isSelected,
-  onSelectReport,
-  point,
-}: ReportMarkerProps) {
-  const category = CATEGORY_CONFIG[point.category];
-  const handleSelect = useCallback(() => {
-    onSelectReport(point.id);
-  }, [onSelectReport, point.id]);
-
-  return (
-    <Marker
-      anchor="bottom"
-      latitude={point.latitude}
-      longitude={point.longitude}
-    >
-      <button
-        aria-label={`Pilih ${getReportTitle(point)}`}
-        aria-pressed={isSelected}
-        className={cn(
-          "flex size-9 items-center justify-center rounded-full border-2 shadow-lg ring-4 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-ring",
-          category.markerClassName,
-          isSelected && "size-11 scale-110 ring-8"
-        )}
-        onClick={handleSelect}
-        title={getReportTitle(point)}
-        type="button"
-      >
-        <MapPinIcon aria-hidden className="size-4" />
-      </button>
-    </Marker>
-  );
-}
 
 interface AgencyMarkerProps {
   agency: DispatchAgency;
@@ -184,6 +175,22 @@ const buildRouteGeoJson = (dispatch: DispatchTracking) => ({
       type: "Feature" as const,
     },
   ],
+  type: "FeatureCollection" as const,
+});
+
+const buildReportsGeoJson = (points: ReportMapPoint[]) => ({
+  features: points.map((point) => ({
+    geometry: {
+      coordinates: [point.longitude, point.latitude],
+      type: "Point" as const,
+    },
+    properties: {
+      category: point.category,
+      id: point.id,
+      title: getReportTitle(point),
+    },
+    type: "Feature" as const,
+  })),
   type: "FeatureCollection" as const,
 });
 
@@ -254,10 +261,12 @@ export function MapCanvas({
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapKey, setMapKey] = useState(0);
   const mapRef = useRef<MapRef>(null);
+  const [isReportHovering, setIsReportHovering] = useState(false);
   const selectedPoint = points.find((point) => point.id === selectedReportId);
   const selectedAgency = agencies.find(
     (agency) => agency.id === selectedAgencyId
   );
+  const reportGeoJson = useMemo(() => buildReportsGeoJson(points), [points]);
 
   const handleMapError = useCallback((event: MapErrorEvent) => {
     setMapError(event.error.message);
@@ -266,6 +275,23 @@ export function MapCanvas({
   const handleRetry = useCallback(() => {
     setMapError(null);
     setMapKey((currentKey) => currentKey + 1);
+  }, []);
+
+  const configureFlatMap = useCallback(() => {
+    const map = mapRef.current?.getMap();
+    if (!map) {
+      return;
+    }
+
+    map.dragRotate.disable();
+    map.touchZoomRotate.disableRotation();
+    map.keyboard.disableRotation();
+
+    for (const layer of map.getStyle().layers ?? []) {
+      if (layer.type === "fill-extrusion" && map.getLayer(layer.id)) {
+        map.removeLayer(layer.id);
+      }
+    }
   }, []);
 
   const focusSelectedPoint = useCallback(() => {
@@ -309,6 +335,50 @@ export function MapCanvas({
     focusSelectedPoint();
   }, [focusSelectedPoint]);
 
+  const handleMapLoad = useCallback(() => {
+    configureFlatMap();
+    focusSelectedPoint();
+  }, [configureFlatMap, focusSelectedPoint]);
+
+  const handleReportLayerClick = useCallback(
+    async (event: MapLayerMouseEvent): Promise<void> => {
+      const [feature] = event.features ?? [];
+      if (feature?.geometry.type !== "Point") {
+        return;
+      }
+
+      const [longitude, latitude] = feature.geometry.coordinates;
+      if (feature.layer.id === REPORT_CLUSTER_LAYER_ID) {
+        const clusterId = feature.properties?.cluster_id;
+        const source = mapRef.current?.getMap().getSource(REPORTS_SOURCE_ID) as
+          | GeoJSONSource
+          | undefined;
+        if (typeof clusterId !== "number" || !source) {
+          return;
+        }
+        const zoom = await source.getClusterExpansionZoom(clusterId);
+        mapRef.current?.easeTo({
+          center: [longitude, latitude],
+          duration: 500,
+          zoom,
+        });
+        return;
+      }
+
+      const reportId = feature.properties?.id;
+      if (typeof reportId === "string") {
+        onSelectReport(reportId);
+      }
+    },
+    [onSelectReport]
+  );
+  const handleReportMouseEnter = useCallback(() => {
+    setIsReportHovering(true);
+  }, []);
+  const handleReportMouseLeave = useCallback(() => {
+    setIsReportHovering(false);
+  }, []);
+
   if (mapError) {
     return (
       <Empty className="size-full min-h-0 bg-neutral-200">
@@ -340,23 +410,116 @@ export function MapCanvas({
       )}
     >
       <MapView
+        cursor={isReportHovering ? "pointer" : "grab"}
+        dragRotate={false}
         initialViewState={JAKARTA_VIEW_STATE}
+        interactiveLayerIds={[...INTERACTIVE_REPORT_LAYER_IDS]}
         key={mapKey}
         mapStyle={MAP_STYLE_URL}
+        maxPitch={0}
+        maxZoom={18}
+        minPitch={0}
+        minZoom={9}
+        onClick={handleReportLayerClick}
         onError={handleMapError}
-        onLoad={focusSelectedPoint}
+        onLoad={handleMapLoad}
+        onMouseEnter={handleReportMouseEnter}
+        onMouseLeave={handleReportMouseLeave}
         ref={mapRef}
+        renderWorldCopies={false}
         reuseMaps
         style={{ height: "100%", width: "100%" }}
+        touchPitch={false}
       >
-        {points.map((point) => (
-          <ReportMarker
-            isSelected={point.id === selectedReportId}
-            key={point.id}
-            onSelectReport={onSelectReport}
-            point={point}
+        <Source
+          cluster
+          clusterMaxZoom={13}
+          clusterRadius={48}
+          data={reportGeoJson}
+          id={REPORTS_SOURCE_ID}
+          type="geojson"
+        >
+          <Layer
+            id={REPORT_CLUSTER_LAYER_ID}
+            paint={{
+              "circle-color": "#333333",
+              "circle-radius": [
+                "step",
+                ["get", "point_count"],
+                18,
+                10,
+                23,
+                30,
+                28,
+              ],
+              "circle-stroke-color": "#ffffff",
+              "circle-stroke-width": 3,
+            }}
+            type="circle"
           />
-        ))}
+          <Layer
+            id={REPORT_CLUSTER_COUNT_LAYER_ID}
+            layout={{
+              "text-field": ["get", "point_count_abbreviated"],
+              "text-font": ["Noto Sans Regular"],
+              "text-size": 11,
+            }}
+            paint={{
+              "text-color": "#ffffff",
+            }}
+            type="symbol"
+          />
+          <Layer
+            filter={["!", ["has", "point_count"]]}
+            id={REPORT_POINT_LAYER_ID}
+            paint={{
+              "circle-color": REPORT_COLOR_EXPRESSION,
+              "circle-radius": [
+                "case",
+                ["==", ["get", "id"], selectedReportId ?? ""],
+                12,
+                9,
+              ],
+              "circle-stroke-color": "#ffffff",
+              "circle-stroke-width": [
+                "case",
+                ["==", ["get", "id"], selectedReportId ?? ""],
+                4,
+                2,
+              ],
+            }}
+            type="circle"
+          />
+          <Layer
+            filter={["!", ["has", "point_count"]]}
+            id={REPORT_WARNING_LAYER_ID}
+            layout={{
+              "text-allow-overlap": true,
+              "text-field": "!",
+              "text-font": ["Noto Sans Regular"],
+              "text-size": [
+                "case",
+                ["==", ["get", "id"], selectedReportId ?? ""],
+                14,
+                11,
+              ],
+            }}
+            paint={{
+              "text-color": [
+                "match",
+                ["get", "category"],
+                "MEDIUM",
+                "#333333",
+                "LOW",
+                "#333333",
+                "#ffffff",
+              ],
+              "text-halo-color": "rgba(255,255,255,0.18)",
+              "text-halo-width": 0.5,
+            }}
+            type="symbol"
+          />
+        </Source>
         {dispatches.map((dispatch) => (
           <DispatchRoute dispatch={dispatch} key={`route-${dispatch.id}`} />
         ))}
@@ -377,11 +540,11 @@ export function MapCanvas({
 
         <NavigationControl
           position="top-left"
+          showCompass={false}
           style={{
             marginLeft: "var(--map-control-left-offset)",
             marginTop: "var(--map-control-top-offset)",
           }}
-          visualizePitch
         />
         <GeolocateControl
           position="top-left"

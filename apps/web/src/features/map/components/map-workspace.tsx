@@ -90,12 +90,13 @@ export function MapWorkspace({
       ?.activeDispatch ?? null;
   const animatedBoardDispatch = useAnimatedDispatchTracking(firstBoardDispatch);
 
-  const handleReportRemoved = useCallback((reportId: string) => {
+  const handleDismissReport = useCallback((reportId: string) => {
     setSelectedReportId((currentReportId) =>
       currentReportId === reportId ? null : currentReportId
     );
+    setSelectedAgencyId(null);
   }, []);
-  const connectionStatus = useReportLiveUpdates(handleReportRemoved);
+  const connectionStatus = useReportLiveUpdates(handleDismissReport);
   const handleSelectReport = useCallback((reportId: string) => {
     setSelectedReportId(reportId);
     setSelectedAgencyId(null);
@@ -144,6 +145,7 @@ export function MapWorkspace({
 
   const contextValue: MapWorkspaceContextValue = {
     connectionStatus,
+    onDismissReport: handleDismissReport,
     onSelectAgency: handleSelectAgency,
     onSelectReport: handleSelectReport,
     selectedAgencyId,

@@ -3,17 +3,11 @@ import {
   DispatchApplicationError,
   type DispatchTracking,
 } from "../domain/entities";
+import { getDispatchBlockReason } from "./dispatch-eligibility";
 import {
   getDemoEstimatedArrivalAt,
   toDispatchTracking,
 } from "./dispatch-rules";
-
-const DISPATCHABLE_REPORT_STATUSES = new Set([
-  "SUBMITTED",
-  "AI_GATHERING",
-  "READY_FOR_REVIEW",
-  "DISPATCH_PENDING",
-]);
 
 const UNIT_PREFIX = {
   AMBULANCE: "AMB",
@@ -56,22 +50,16 @@ export class CreateDispatch {
         "Laporan tidak ditemukan"
       );
     }
-    if (context.activeDispatch) {
+    const dispatchBlockReason = getDispatchBlockReason({
+      hasActiveDispatch: context.activeDispatch !== null,
+      latitude: context.report.latitude,
+      longitude: context.report.longitude,
+      status: context.report.status,
+    });
+    if (dispatchBlockReason) {
       throw new DispatchApplicationError(
-        "CONFLICT",
-        "Laporan sudah memiliki dispatch aktif"
-      );
-    }
-    if (!DISPATCHABLE_REPORT_STATUSES.has(context.report.status)) {
-      throw new DispatchApplicationError(
-        "BAD_REQUEST",
-        "Status laporan tidak dapat menerima dispatch baru"
-      );
-    }
-    if (context.report.latitude === null || context.report.longitude === null) {
-      throw new DispatchApplicationError(
-        "BAD_REQUEST",
-        "Lokasi laporan belum tersedia"
+        context.activeDispatch ? "CONFLICT" : "BAD_REQUEST",
+        dispatchBlockReason
       );
     }
 

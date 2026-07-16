@@ -24,6 +24,7 @@ import { useAnimatedDispatchTracking } from "../hooks";
 import type { DispatchAgencyRecommendation, DispatchTracking } from "../types";
 
 interface ReportDispatchSectionProps {
+  onReportResolved: (reportId: string) => void;
   onSelectAgency: (agencyId: string) => void;
   reportId: string;
   selectedAgencyId: string | null;
@@ -107,7 +108,7 @@ function RecommendationOption({
 }
 
 function DispatchTimeline({ dispatch }: { dispatch: DispatchTracking }) {
-  const steps = [
+  const baseSteps = [
     {
       label: "Analisis laporan selesai",
       timestamp: dispatch.requestedAt,
@@ -128,6 +129,23 @@ function DispatchTimeline({ dispatch }: { dispatch: DispatchTracking }) {
       label: "Unit tiba di lokasi",
       timestamp: dispatch.arrivedAt,
     },
+  ];
+  const ambulanceReturnSteps =
+    dispatch.agency.type === "AMBULANCE"
+      ? [
+          {
+            label: "Kembali ke rumah sakit",
+            timestamp: dispatch.returnStartedAt,
+          },
+          {
+            label: "Tiba di rumah sakit",
+            timestamp: dispatch.returnedAt,
+          },
+        ]
+      : [];
+  const steps = [
+    ...baseSteps,
+    ...ambulanceReturnSteps,
     {
       label: "Laporan terselesaikan",
       timestamp: dispatch.completedAt,
@@ -197,6 +215,10 @@ function ActiveDispatchTracker({
   const statusConfig = DISPATCH_STATUS_CONFIG[animatedDispatch.status];
   const typeConfig = AGENCY_TYPE_CONFIG[animatedDispatch.agency.type];
   const VehicleIcon = typeConfig.vehicleIcon;
+  const isReturning = animatedDispatch.status === "RETURNING_TO_BASE";
+  const estimatedCompletionAt = isReturning
+    ? animatedDispatch.estimatedReturnAt
+    : animatedDispatch.estimatedArrivalAt;
   const handleResolve = useCallback(() => {
     onResolve(animatedDispatch.id);
   }, [animatedDispatch.id, onResolve]);
@@ -246,11 +268,14 @@ function ActiveDispatchTracker({
         value={animatedDispatch.progressPercent}
       />
       <span className="mt-1 flex items-center justify-between text-[9px] text-muted-foreground">
-        <span>{animatedDispatch.progressPercent}% perjalanan</span>
         <span>
-          ETA{" "}
-          {animatedDispatch.estimatedArrivalAt
-            ? formatStatusTime(animatedDispatch.estimatedArrivalAt)
+          {animatedDispatch.progressPercent}%{" "}
+          {isReturning ? "perjalanan pulang" : "perjalanan"}
+        </span>
+        <span>
+          {isReturning ? "Tiba basis" : "ETA"}{" "}
+          {estimatedCompletionAt
+            ? formatStatusTime(estimatedCompletionAt)
             : "diproses"}
         </span>
       </span>
@@ -281,13 +306,14 @@ function ActiveDispatchTracker({
 }
 
 export function ReportDispatchSection({
+  onReportResolved,
   onSelectAgency,
   reportId,
   selectedAgencyId,
 }: ReportDispatchSectionProps) {
   const overviewQuery = useReportDispatchQuery(reportId);
   const createMutation = useCreateDispatchMutation();
-  const resolveMutation = useResolveDispatchMutation();
+  const resolveMutation = useResolveDispatchMutation(onReportResolved);
   const selectedAgency = useMemo(
     () =>
       overviewQuery.data?.recommendations.find(
@@ -381,6 +407,21 @@ export function ReportDispatchSection({
         onResolve={handleResolve}
         resolving={resolveMutation.isPending}
       />
+    );
+  }
+
+  if (!overviewQuery.data.canDispatch) {
+    return (
+      <section>
+        <h2 className="flex items-center gap-2 font-semibold text-foreground text-sm">
+          <NavigationIcon aria-hidden className="size-4" />
+          Dispatch respons
+        </h2>
+        <p className="mt-2 rounded-md bg-muted p-3 text-muted-foreground text-xs">
+          {overviewQuery.data.dispatchBlockReason ??
+            "Laporan belum dapat menerima dispatch."}
+        </p>
+      </section>
     );
   }
 

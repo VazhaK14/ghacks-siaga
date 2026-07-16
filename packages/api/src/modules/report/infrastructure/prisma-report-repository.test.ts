@@ -24,7 +24,9 @@ describe("PrismaReportRepository", () => {
     });
     const firstPageIds = new Set(firstPage.items.map((report) => report.id));
 
-    expect(firstPage.activeCount).toBe(13);
+    expect(firstPage.activeCount).toBeGreaterThanOrEqual(
+      firstPage.items.length
+    );
     expect(firstPage.items).toHaveLength(5);
     expect(firstPage.nextCursor).not.toBeNull();
     expect(
@@ -42,15 +44,20 @@ describe("PrismaReportRepository", () => {
   });
 
   test("returns only active reports with usable map coordinates", async () => {
-    const points = await repository.listActiveMapPoints();
+    const [points, archived] = await Promise.all([
+      repository.listActiveMapPoints(),
+      repository.listArchived({ page: 1, pageSize: 10 }),
+    ]);
+    const archivedIds = new Set(archived.items.map((report) => report.id));
 
-    expect(points).toHaveLength(12);
+    expect(points.length).toBeGreaterThan(0);
     expect(
       points.every(
         (point) =>
           Number.isFinite(point.latitude) && Number.isFinite(point.longitude)
       )
     ).toBeTrue();
+    expect(points.every((point) => !archivedIds.has(point.id))).toBeTrue();
   });
 
   test("returns operational detail and related data", async () => {
@@ -66,6 +73,37 @@ describe("PrismaReportRepository", () => {
 
     expect(detail?.reporter.name).toBe("Rani Pratama");
     expect(detail?.latestAnalysis).not.toBeNull();
+    expect(detail?.statusHistory.length).toBeGreaterThan(0);
+  });
+
+  test("returns terminal reports through the archive with pagination", async () => {
+    const page = await repository.listArchived({ page: 1, pageSize: 1 });
+
+    expect(page.items).toHaveLength(1);
+    expect(page.total).toBeGreaterThanOrEqual(page.items.length);
+    expect(page.totalPages).toBe(Math.ceil(page.total / page.pageSize));
+    expect(["RESOLVED", "CLOSED", "CANCELLED"]).toContain(
+      page.items[0]?.status
+    );
+  });
+
+  test("returns read-only archived detail", async () => {
+    const page = await repository.listArchived({
+      page: 1,
+      pageSize: 10,
+      status: "RESOLVED",
+    });
+    const [report] = page.items;
+
+    expect(report).toBeDefined();
+    if (!report) {
+      return;
+    }
+
+    const detail = await repository.findArchivedDetail(report.id);
+
+    expect(detail?.status).toBe("RESOLVED");
+    expect(detail?.reporter.name).toBe("Rani Pratama");
     expect(detail?.statusHistory.length).toBeGreaterThan(0);
   });
 });

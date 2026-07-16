@@ -11,6 +11,8 @@ enum DispatchStatus {
   ACKNOWLEDGED
   EN_ROUTE
   ARRIVED
+  RETURNING_TO_BASE
+  RETURNED_TO_BASE
   COMPLETED
   CANCELLED
 }
@@ -59,6 +61,9 @@ model DispatchRequest {
   enRouteAt      DateTime?
   estimatedArrivalAt DateTime?
   arrivedAt      DateTime?
+  returnStartedAt DateTime?
+  estimatedReturnAt DateTime?
+  returnedAt     DateTime?
   completedAt    DateTime?
   unitCode       String?
 

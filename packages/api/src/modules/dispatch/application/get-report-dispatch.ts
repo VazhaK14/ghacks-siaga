@@ -1,5 +1,6 @@
 import type { DispatchRepository } from "../domain/dispatch-repository";
 import type { ReportDispatchOverview } from "../domain/entities";
+import { getDispatchBlockReason } from "./dispatch-eligibility";
 import {
   buildAgencyRecommendations,
   toDispatchTracking,
@@ -19,8 +20,14 @@ export class GetReportDispatch {
     }
 
     const { latitude, longitude } = context.report;
+    const dispatchBlockReason = getDispatchBlockReason({
+      hasActiveDispatch: context.activeDispatch !== null,
+      latitude,
+      longitude,
+      status: context.report.status,
+    });
     const recommendations =
-      latitude === null || longitude === null
+      dispatchBlockReason || latitude === null || longitude === null
         ? []
         : buildAgencyRecommendations({
             agencies: context.agencies,
@@ -33,6 +40,8 @@ export class GetReportDispatch {
       activeDispatch: context.activeDispatch
         ? toDispatchTracking(context.activeDispatch)
         : null,
+      canDispatch: dispatchBlockReason === null,
+      dispatchBlockReason,
       incidentType: context.report.incidentType,
       recommendations,
       reportId,

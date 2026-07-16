@@ -9,6 +9,7 @@ import type {
 
 const EARTH_RADIUS_KM = 6371;
 const DEMO_TRAVEL_DURATION_MS = 20_000;
+const DEMO_RETURN_DURATION_MS = 20_000;
 const MINUTES_PER_KILOMETER = 2.5;
 
 const INCIDENT_AGENCY_PRIORITY: Record<
@@ -111,48 +112,135 @@ export const buildAgencyRecommendations = ({
 const interpolate = (from: number, to: number, progress: number): number =>
   from + (to - from) * progress;
 
-export const toDispatchTracking = (
+interface DispatchPosition {
+  currentLatitude: number;
+  currentLongitude: number;
+  progress: number;
+}
+
+const getTimedProgress = (
+  startedAt: Date,
+  estimatedCompletionAt: Date,
+  now: Date
+): number => {
+  const duration = estimatedCompletionAt.getTime() - startedAt.getTime();
+  const elapsed = now.getTime() - startedAt.getTime();
+  return duration > 0 ? Math.min(1, Math.max(0, elapsed / duration)) : 1;
+};
+
+const getDispatchPosition = (
   dispatch: DispatchRecord,
-  now = new Date()
-): DispatchTracking => {
-  let progress = 0;
+  now: Date
+): DispatchPosition => {
   if (
     dispatch.status === "EN_ROUTE" &&
     dispatch.enRouteAt &&
     dispatch.estimatedArrivalAt
   ) {
-    const duration =
-      dispatch.estimatedArrivalAt.getTime() - dispatch.enRouteAt.getTime();
-    const elapsed = now.getTime() - dispatch.enRouteAt.getTime();
-    progress = duration > 0 ? Math.min(1, Math.max(0, elapsed / duration)) : 1;
-  } else if (dispatch.status === "ARRIVED" || dispatch.status === "COMPLETED") {
-    progress = 1;
+    const progress = getTimedProgress(
+      dispatch.enRouteAt,
+      dispatch.estimatedArrivalAt,
+      now
+    );
+    return {
+      currentLatitude: interpolate(
+        dispatch.agency.latitude,
+        dispatch.destination.latitude,
+        progress
+      ),
+      currentLongitude: interpolate(
+        dispatch.agency.longitude,
+        dispatch.destination.longitude,
+        progress
+      ),
+      progress,
+    };
   }
+
+  if (
+    dispatch.status === "RETURNING_TO_BASE" &&
+    dispatch.returnStartedAt &&
+    dispatch.estimatedReturnAt
+  ) {
+    const progress = getTimedProgress(
+      dispatch.returnStartedAt,
+      dispatch.estimatedReturnAt,
+      now
+    );
+    return {
+      currentLatitude: interpolate(
+        dispatch.destination.latitude,
+        dispatch.agency.latitude,
+        progress
+      ),
+      currentLongitude: interpolate(
+        dispatch.destination.longitude,
+        dispatch.agency.longitude,
+        progress
+      ),
+      progress,
+    };
+  }
+
+  const isAtBase =
+    dispatch.status === "RETURNED_TO_BASE" ||
+    (dispatch.status === "COMPLETED" && dispatch.returnedAt !== null);
+  if (isAtBase) {
+    return {
+      currentLatitude: dispatch.agency.latitude,
+      currentLongitude: dispatch.agency.longitude,
+      progress: 1,
+    };
+  }
+
+  const isAtDestination =
+    dispatch.status === "ARRIVED" || dispatch.status === "COMPLETED";
+  if (isAtDestination) {
+    return {
+      currentLatitude: dispatch.destination.latitude,
+      currentLongitude: dispatch.destination.longitude,
+      progress: 1,
+    };
+  }
+
+  return {
+    currentLatitude: dispatch.agency.latitude,
+    currentLongitude: dispatch.agency.longitude,
+    progress: 0,
+  };
+};
+
+export const toDispatchTracking = (
+  dispatch: DispatchRecord,
+  now = new Date()
+): DispatchTracking => {
+  const { currentLatitude, currentLongitude, progress } = getDispatchPosition(
+    dispatch,
+    now
+  );
 
   return {
     acknowledgedAt: dispatch.acknowledgedAt?.toISOString() ?? null,
     agency: dispatch.agency,
     arrivedAt: dispatch.arrivedAt?.toISOString() ?? null,
-    canResolve: dispatch.status === "ARRIVED",
+    canResolve:
+      dispatch.agency.type === "AMBULANCE"
+        ? dispatch.status === "RETURNED_TO_BASE"
+        : dispatch.status === "ARRIVED",
     completedAt: dispatch.completedAt?.toISOString() ?? null,
-    currentLatitude: interpolate(
-      dispatch.agency.latitude,
-      dispatch.destination.latitude,
-      progress
-    ),
-    currentLongitude: interpolate(
-      dispatch.agency.longitude,
-      dispatch.destination.longitude,
-      progress
-    ),
+    currentLatitude,
+    currentLongitude,
     destination: dispatch.destination,
     enRouteAt: dispatch.enRouteAt?.toISOString() ?? null,
     estimatedArrivalAt: dispatch.estimatedArrivalAt?.toISOString() ?? null,
+    estimatedReturnAt: dispatch.estimatedReturnAt?.toISOString() ?? null,
     id: dispatch.id,
     notes: dispatch.notes,
     progressPercent: Math.round(progress * 100),
     reportId: dispatch.reportId,
     requestedAt: dispatch.requestedAt.toISOString(),
+    returnedAt: dispatch.returnedAt?.toISOString() ?? null,
+    returnStartedAt: dispatch.returnStartedAt?.toISOString() ?? null,
     status: dispatch.status,
     unitCode: dispatch.unitCode,
   };
@@ -160,3 +248,6 @@ export const toDispatchTracking = (
 
 export const getDemoEstimatedArrivalAt = (requestedAt: Date): Date =>
   new Date(requestedAt.getTime() + DEMO_TRAVEL_DURATION_MS);
+
+export const getDemoEstimatedReturnAt = (returnStartedAt: Date): Date =>
+  new Date(returnStartedAt.getTime() + DEMO_RETURN_DURATION_MS);

@@ -9,16 +9,25 @@ import {
   type ActiveReportListItem,
   type ActiveReportPage,
   type ActiveReportStatus,
+  type ArchivedReportDetail,
+  type ArchivedReportPage,
   type ReportDetail,
   type ReportMapPoint,
   type ReportStatusHistoryItem,
+  TERMINAL_REPORT_STATUSES,
+  type TerminalReportStatus,
 } from "../domain/entities";
 import type {
   ListActiveReportsInput,
+  ListArchivedReportsInput,
   ReportRepository,
 } from "../domain/report-repository";
 
 const ACTIVE_STATUSES = ACTIVE_REPORT_STATUSES.map(
+  (status) => ReportStatus[status]
+) satisfies PrismaReportStatus[];
+
+const TERMINAL_STATUSES = TERMINAL_REPORT_STATUSES.map(
   (status) => ReportStatus[status]
 ) satisfies PrismaReportStatus[];
 
@@ -40,6 +49,25 @@ const toIsoString = (date: Date): string => date.toISOString();
 
 const toActiveStatus = (status: PrismaReportStatus): ActiveReportStatus =>
   status as ActiveReportStatus;
+
+const toTerminalStatus = (status: PrismaReportStatus): TerminalReportStatus =>
+  status as TerminalReportStatus;
+
+const toStatusHistoryItem = (event: {
+  actorType: "REPORTER" | "AI_AGENT" | "OPERATOR" | "SYSTEM";
+  createdAt: Date;
+  fromStatus: PrismaReportStatus | null;
+  id: string;
+  note: string | null;
+  toStatus: PrismaReportStatus;
+}): ReportStatusHistoryItem => ({
+  actorType: event.actorType,
+  createdAt: toIsoString(event.createdAt),
+  fromStatus: event.fromStatus,
+  id: event.id,
+  note: event.note,
+  toStatus: event.toStatus,
+});
 
 export class PrismaReportRepository implements ReportRepository {
   async listActive({
@@ -105,16 +133,7 @@ export class PrismaReportRepository implements ReportRepository {
     }
 
     const [latestAnalysis] = report.aiAnalyses;
-    const statusHistory: ReportStatusHistoryItem[] = report.statusHistory.map(
-      (event) => ({
-        actorType: event.actorType,
-        createdAt: toIsoString(event.createdAt),
-        fromStatus: event.fromStatus,
-        id: event.id,
-        note: event.note,
-        toStatus: event.toStatus,
-      })
-    );
+    const statusHistory = report.statusHistory.map(toStatusHistoryItem);
 
     return {
       activeChannel: report.activeChannel,
@@ -159,6 +178,179 @@ export class PrismaReportRepository implements ReportRepository {
       summary: report.summary,
       title: report.title,
       updatedAt: toIsoString(report.updatedAt),
+    };
+  }
+
+  async findArchivedDetail(
+    reportId: string
+  ): Promise<ArchivedReportDetail | null> {
+    const report = await prisma.emergencyReport.findFirst({
+      include: {
+        assignedOperator: {
+          select: { id: true, name: true },
+        },
+        dispatches: {
+          include: {
+            agency: {
+              select: { name: true, type: true },
+            },
+            dispatchedByOperator: {
+              select: { id: true, name: true },
+            },
+          },
+          orderBy: { requestedAt: "desc" },
+        },
+        reporter: {
+          include: { reporterProfile: true },
+        },
+        statusHistory: {
+          orderBy: { createdAt: "desc" },
+        },
+      },
+      where: {
+        id: reportId,
+        status: { in: TERMINAL_STATUSES },
+      },
+    });
+
+    if (!report) {
+      return null;
+    }
+
+    return {
+      address: report.address,
+      assignedOperator: report.assignedOperator,
+      category: report.category,
+      closedAt: report.closedAt ? toIsoString(report.closedAt) : null,
+      createdAt: toIsoString(report.createdAt),
+      dispatches: report.dispatches.map((dispatch) => ({
+        acknowledgedAt: dispatch.acknowledgedAt
+          ? toIsoString(dispatch.acknowledgedAt)
+          : null,
+        agency: dispatch.agency,
+        arrivedAt: dispatch.arrivedAt ? toIsoString(dispatch.arrivedAt) : null,
+        completedAt: dispatch.completedAt
+          ? toIsoString(dispatch.completedAt)
+          : null,
+        dispatchedByOperator: dispatch.dispatchedByOperator,
+        enRouteAt: dispatch.enRouteAt ? toIsoString(dispatch.enRouteAt) : null,
+        id: dispatch.id,
+        requestedAt: toIsoString(dispatch.requestedAt),
+        status: dispatch.status,
+        unitCode: dispatch.unitCode,
+      })),
+      id: report.id,
+      incidentType: report.incidentType,
+      reporter: {
+        email: report.reporter.email,
+        id: report.reporter.id,
+        name: report.reporter.name,
+        phoneNumber: report.reporter.reporterProfile?.phoneNumber ?? null,
+      },
+      resolvedAt: report.resolvedAt ? toIsoString(report.resolvedAt) : null,
+      status: toTerminalStatus(report.status),
+      statusHistory: report.statusHistory.map(toStatusHistoryItem),
+      summary: report.summary,
+      terminalAt: toIsoString(
+        report.resolvedAt ?? report.closedAt ?? report.updatedAt
+      ),
+      title: report.title,
+    };
+  }
+
+  async listArchived({
+    category,
+    page,
+    pageSize,
+    query,
+    status,
+  }: ListArchivedReportsInput): Promise<ArchivedReportPage> {
+    const normalizedQuery = query?.trim();
+    const where = {
+      category,
+      OR: normalizedQuery
+        ? [
+            {
+              title: {
+                contains: normalizedQuery,
+                mode: "insensitive" as const,
+              },
+            },
+            {
+              address: {
+                contains: normalizedQuery,
+                mode: "insensitive" as const,
+              },
+            },
+            {
+              reporter: {
+                name: {
+                  contains: normalizedQuery,
+                  mode: "insensitive" as const,
+                },
+              },
+            },
+          ]
+        : undefined,
+      status: status ? ReportStatus[status] : { in: TERMINAL_STATUSES },
+    };
+    const [reports, total] = await Promise.all([
+      prisma.emergencyReport.findMany({
+        include: {
+          assignedOperator: {
+            select: { id: true, name: true },
+          },
+          dispatches: {
+            include: {
+              agency: {
+                select: { name: true },
+              },
+            },
+            orderBy: { requestedAt: "desc" },
+            take: 1,
+          },
+          reporter: {
+            select: { id: true, name: true },
+          },
+        },
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        where,
+      }),
+      prisma.emergencyReport.count({ where }),
+    ]);
+
+    return {
+      items: reports.map((report) => {
+        const [latestDispatch] = report.dispatches;
+        return {
+          address: report.address,
+          assignedOperator: report.assignedOperator,
+          category: report.category,
+          createdAt: toIsoString(report.createdAt),
+          id: report.id,
+          incidentType: report.incidentType,
+          latestDispatch: latestDispatch
+            ? {
+                agencyName: latestDispatch.agency?.name ?? null,
+                status: latestDispatch.status,
+                unitCode: latestDispatch.unitCode,
+              }
+            : null,
+          reporter: report.reporter,
+          status: toTerminalStatus(report.status),
+          summary: report.summary,
+          terminalAt: toIsoString(
+            report.resolvedAt ?? report.closedAt ?? report.updatedAt
+          ),
+          title: report.title,
+        };
+      }),
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize),
     };
   }
 

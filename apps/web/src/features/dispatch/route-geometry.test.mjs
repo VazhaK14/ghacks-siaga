@@ -48,4 +48,22 @@ describe("dispatch route geometry", () => {
     expect(getCoordinateAlongRoute(coordinates, -1)).toEqual(coordinates[0]);
     expect(getCoordinateAlongRoute(coordinates, 2)).toEqual(coordinates.at(-1));
   });
+
+  it("reverses the route while a unit returns to base", () => {
+    const outboundCoordinates = buildDispatchRouteCoordinates(dispatch);
+    const returnCoordinates = buildDispatchRouteCoordinates({
+      ...dispatch,
+      status: "RETURNING_TO_BASE",
+    });
+
+    expect(returnCoordinates).toEqual([...outboundCoordinates].reverse());
+    expect(getCoordinateAlongRoute(returnCoordinates, 0)).toEqual([
+      dispatch.destination.longitude,
+      dispatch.destination.latitude,
+    ]);
+    expect(getCoordinateAlongRoute(returnCoordinates, 1)).toEqual([
+      dispatch.agency.longitude,
+      dispatch.agency.latitude,
+    ]);
+  });
 });

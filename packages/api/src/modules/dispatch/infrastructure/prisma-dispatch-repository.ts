@@ -6,6 +6,7 @@ import {
   type DispatchAgencyAvailability as PrismaDispatchAgencyAvailability,
   type DispatchAgencyType as PrismaDispatchAgencyType,
   type DispatchStatus as PrismaDispatchStatus,
+  type ReportStatus as PrismaReportStatus,
   ReportStatus,
 } from "@siaga-app/db/enums";
 import type {
@@ -27,7 +28,15 @@ const ACTIVE_DISPATCH_STATUSES = [
   DispatchStatus.ACKNOWLEDGED,
   DispatchStatus.EN_ROUTE,
   DispatchStatus.ARRIVED,
+  DispatchStatus.RETURNING_TO_BASE,
+  DispatchStatus.RETURNED_TO_BASE,
 ] satisfies PrismaDispatchStatus[];
+
+const TERMINAL_REPORT_STATUSES: PrismaReportStatus[] = [
+  ReportStatus.RESOLVED,
+  ReportStatus.CLOSED,
+  ReportStatus.CANCELLED,
+];
 
 interface AgencyRow {
   address: string | null;
@@ -49,6 +58,7 @@ interface DispatchRow {
   dispatchedByOperatorId: string;
   enRouteAt: Date | null;
   estimatedArrivalAt: Date | null;
+  estimatedReturnAt: Date | null;
   id: string;
   notes: string | null;
   report: {
@@ -59,6 +69,8 @@ interface DispatchRow {
   };
   reportId: string;
   requestedAt: Date;
+  returnedAt: Date | null;
+  returnStartedAt: Date | null;
   status: PrismaDispatchStatus;
   unitCode: string | null;
 }
@@ -98,10 +110,13 @@ const toDispatchRecord = (dispatch: DispatchRow): DispatchRecord => {
     dispatchedByOperatorId: dispatch.dispatchedByOperatorId,
     enRouteAt: dispatch.enRouteAt,
     estimatedArrivalAt: dispatch.estimatedArrivalAt,
+    estimatedReturnAt: dispatch.estimatedReturnAt,
     id: dispatch.id,
     notes: dispatch.notes,
     reportId: dispatch.reportId,
     requestedAt: dispatch.requestedAt,
+    returnedAt: dispatch.returnedAt,
+    returnStartedAt: dispatch.returnStartedAt,
     status: dispatch.status,
     unitCode: dispatch.unitCode,
   };
@@ -209,6 +224,12 @@ export class PrismaDispatchRepository implements DispatchRepository {
           "Laporan sudah memiliki dispatch aktif"
         );
       }
+      if (TERMINAL_REPORT_STATUSES.includes(report.status)) {
+        throw new DispatchApplicationError(
+          "BAD_REQUEST",
+          "Laporan terminal tidak dapat menerima dispatch baru"
+        );
+      }
       if (agency.availability !== DispatchAgencyAvailability.AVAILABLE) {
         throw new DispatchApplicationError(
           "CONFLICT",
@@ -308,6 +329,9 @@ export class PrismaDispatchRepository implements DispatchRepository {
         acknowledgedAt?: Date;
         arrivedAt?: Date;
         enRouteAt?: Date;
+        estimatedReturnAt?: Date;
+        returnedAt?: Date;
+        returnStartedAt?: Date;
       } = {};
       if (input.nextStatus === DispatchStatus.ACKNOWLEDGED) {
         timestampData = { acknowledgedAt: input.at };
@@ -315,6 +339,13 @@ export class PrismaDispatchRepository implements DispatchRepository {
         timestampData = { enRouteAt: input.at };
       } else if (input.nextStatus === DispatchStatus.ARRIVED) {
         timestampData = { arrivedAt: input.at };
+      } else if (input.nextStatus === DispatchStatus.RETURNING_TO_BASE) {
+        timestampData = {
+          estimatedReturnAt: input.estimatedReturnAt,
+          returnStartedAt: input.at,
+        };
+      } else if (input.nextStatus === DispatchStatus.RETURNED_TO_BASE) {
+        timestampData = { returnedAt: input.at };
       }
 
       await transaction.dispatchRequest.update({
@@ -325,8 +356,9 @@ export class PrismaDispatchRepository implements DispatchRepository {
         where: { id: input.dispatchId },
       });
 
-      const nextReportStatus =
-        ReportStatus[input.nextReportStatus as keyof typeof ReportStatus];
+      const nextReportStatus = input.nextReportStatus
+        ? ReportStatus[input.nextReportStatus as keyof typeof ReportStatus]
+        : null;
       if (
         nextReportStatus &&
         currentDispatch.report.status !== nextReportStatus
@@ -368,10 +400,16 @@ export class PrismaDispatchRepository implements DispatchRepository {
           "Dispatch tidak ditemukan"
         );
       }
-      if (currentDispatch.status !== DispatchStatus.ARRIVED) {
+      const requiredStatus =
+        currentDispatch.agencyType === "AMBULANCE"
+          ? DispatchStatus.RETURNED_TO_BASE
+          : DispatchStatus.ARRIVED;
+      if (currentDispatch.status !== requiredStatus) {
         throw new DispatchApplicationError(
           "BAD_REQUEST",
-          "Unit respons belum tiba di lokasi"
+          currentDispatch.agencyType === "AMBULANCE"
+            ? "Ambulans belum kembali ke rumah sakit"
+            : "Unit respons belum tiba di lokasi"
         );
       }
 

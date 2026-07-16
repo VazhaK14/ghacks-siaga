@@ -11,7 +11,6 @@ import { cn } from "@siaga-app/ui/lib/utils";
 import {
   ExternalLinkIcon,
   MapPinIcon,
-  PhoneIcon,
   UserRoundIcon,
   XIcon,
 } from "lucide-react";
@@ -33,6 +32,7 @@ interface ReportDetailPanelProps {
   error: DisplayError | null;
   isPending: boolean;
   onClose?: () => void;
+  onReportResolved: (reportId: string) => void;
   onSelectAgency: (agencyId: string) => void;
   report: ReportDetail | null;
   selectedAgencyId: string | null;
@@ -111,15 +111,6 @@ function ReporterSection({ report }: { report: ReportDetail }) {
         />
         <DetailRow label="Kontak darurat" value={emergencyContact} />
       </dl>
-      {report.contactPhone ? (
-        <a
-          className="mt-3 inline-flex items-center gap-1 font-semibold text-primary-200 text-xs hover:underline"
-          href={`tel:${report.contactPhone}`}
-        >
-          <PhoneIcon aria-hidden className="size-3.5" />
-          Hubungi pelapor
-        </a>
-      ) : null}
     </section>
   );
 }
@@ -241,12 +232,14 @@ function StatusHistorySection({ report }: { report: ReportDetail }) {
 function LoadedReportDetail({
   className,
   onClose,
+  onReportResolved,
   onSelectAgency,
   report,
   selectedAgencyId,
 }: {
   className?: string;
   onClose?: () => void;
+  onReportResolved: (reportId: string) => void;
   onSelectAgency: (agencyId: string) => void;
   report: ReportDetail;
   selectedAgencyId: string | null;
@@ -333,6 +326,7 @@ function LoadedReportDetail({
 
         <Separator className="my-4" />
         <ReportDispatchSection
+          onReportResolved={onReportResolved}
           onSelectAgency={onSelectAgency}
           reportId={report.id}
           selectedAgencyId={selectedAgencyId}
@@ -355,6 +349,7 @@ export function ReportDetailPanel({
   className,
   error,
   isPending,
+  onReportResolved,
   onSelectAgency,
   onClose,
   report,
@@ -402,6 +397,7 @@ export function ReportDetailPanel({
     <LoadedReportDetail
       className={className}
       onClose={onClose}
+      onReportResolved={onReportResolved}
       onSelectAgency={onSelectAgency}
       report={report}
       selectedAgencyId={selectedAgencyId}

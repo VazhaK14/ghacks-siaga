@@ -17,7 +17,11 @@ import { toast } from "sonner";
 import { useCreateOperatorMutation } from "../api";
 import { createOperatorSchema } from "../types";
 
-export function CreateOperatorDialog() {
+export function CreateOperatorDialog({
+  onCreated,
+}: {
+  onCreated?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const createOperatorMutation = useCreateOperatorMutation();
 
@@ -36,6 +40,7 @@ export function CreateOperatorDialog() {
           toast.success("Operator berhasil ditambahkan");
           formApi.reset();
           setOpen(false);
+          onCreated?.();
         },
       });
     },

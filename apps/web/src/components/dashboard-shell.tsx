@@ -28,11 +28,11 @@ export function DashboardShell({
 }) {
   return (
     <SidebarProvider
-      className="relative h-svh min-h-0 overflow-hidden bg-neutral-200 [&_[data-slot=sidebar-gap]]:w-0!"
+      className="dark relative h-svh min-h-0 overflow-hidden bg-background text-foreground [&_[data-slot=sidebar-gap]]:w-0!"
       style={{ "--sidebar-width": "15rem" } as CSSProperties}
     >
       <DashboardSidebar user={user} />
-      <SidebarInset className="h-svh min-w-0 overflow-hidden bg-neutral-200">
+      <SidebarInset className="h-svh min-w-0 overflow-hidden bg-background">
         <SidebarTrigger
           className="fixed top-3 left-3 z-30 bg-popover text-popover-foreground shadow-lg md:hidden"
           variant="secondary"

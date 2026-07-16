@@ -2,6 +2,7 @@ import type { DispatchTracking } from "../domain/entities";
 
 const ACCEPTANCE_DELAY_MS = 2000;
 const DEPARTURE_DELAY_MS = 2000;
+const ON_SCENE_HANDLING_DELAY_MS = 4000;
 const RETRY_DELAY_MS = 1000;
 
 type AdvanceDispatch = (dispatchId: string) => Promise<DispatchTracking>;
@@ -73,6 +74,18 @@ export class DispatchSimulationScheduler {
     }
     if (dispatch.status === "EN_ROUTE" && dispatch.estimatedArrivalAt) {
       return new Date(dispatch.estimatedArrivalAt);
+    }
+    if (
+      dispatch.status === "ARRIVED" &&
+      dispatch.agency.type === "AMBULANCE" &&
+      dispatch.arrivedAt
+    ) {
+      return new Date(
+        new Date(dispatch.arrivedAt).getTime() + ON_SCENE_HANDLING_DELAY_MS
+      );
+    }
+    if (dispatch.status === "RETURNING_TO_BASE" && dispatch.estimatedReturnAt) {
+      return new Date(dispatch.estimatedReturnAt);
     }
 
     return null;

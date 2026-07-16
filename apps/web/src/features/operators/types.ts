@@ -16,3 +16,11 @@ export interface Operator {
   name: string;
   role: string;
 }
+
+export interface OperatorPage {
+  items: Operator[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}

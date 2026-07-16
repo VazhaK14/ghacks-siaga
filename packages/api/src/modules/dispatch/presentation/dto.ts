@@ -19,6 +19,8 @@ const dispatchStatusSchema = z.enum([
   "ACKNOWLEDGED",
   "EN_ROUTE",
   "ARRIVED",
+  "RETURNING_TO_BASE",
+  "RETURNED_TO_BASE",
   "COMPLETED",
   "CANCELLED",
 ]);
@@ -62,17 +64,22 @@ export const dispatchTrackingSchema = z.object({
   }),
   enRouteAt: z.iso.datetime().nullable(),
   estimatedArrivalAt: z.iso.datetime().nullable(),
+  estimatedReturnAt: z.iso.datetime().nullable(),
   id: z.string(),
   notes: z.string().nullable(),
   progressPercent: z.number().min(0).max(100),
   reportId: z.string(),
   requestedAt: z.iso.datetime(),
+  returnedAt: z.iso.datetime().nullable(),
+  returnStartedAt: z.iso.datetime().nullable(),
   status: dispatchStatusSchema,
   unitCode: z.string().nullable(),
 });
 
 export const reportDispatchOverviewSchema = z.object({
   activeDispatch: dispatchTrackingSchema.nullable(),
+  canDispatch: z.boolean(),
+  dispatchBlockReason: z.string().nullable(),
   incidentType: incidentTypeSchema.nullable(),
   recommendations: z.array(
     agencySchema.extend({

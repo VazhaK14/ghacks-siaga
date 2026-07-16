@@ -1,5 +1,9 @@
-import { ComingSoon } from "@/components/coming-soon";
+import { ArchivedReportsScreen } from "@/features/reports/components/archived-reports-screen";
 
-export default function Laporan() {
-  return <ComingSoon title="Laporan" />;
+export const handle = {
+  dashboardSurface: "standard",
+} as const;
+
+export default function ReportsArchive() {
+  return <ArchivedReportsScreen />;
 }
