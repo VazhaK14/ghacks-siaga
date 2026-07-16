@@ -5,6 +5,9 @@
     ".": {
       "default": "./src/index.ts"
     },
+    "./enums": {
+      "default": "./prisma/generated/enums.ts"
+    },
     "./*": {
       "default": "./src/*.ts"
     }

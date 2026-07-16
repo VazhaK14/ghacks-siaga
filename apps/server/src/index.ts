@@ -1,5 +1,6 @@
 import { trpcServer } from "@hono/trpc-server";
 import { createContext } from "@siaga-app/api/context";
+import { subscribeToReportLiveEvents } from "@siaga-app/api/modules/report/presentation/live-events";
 import { appRouter } from "@siaga-app/api/routers/index";
 import { auth } from "@siaga-app/auth";
 import { env } from "@siaga-app/env/server";
@@ -11,6 +12,9 @@ import {
 import { type EvlogVariables, evlog } from "evlog/hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { streamSSE } from "hono/streaming";
+
+const SSE_HEARTBEAT_INTERVAL_MS = 5000;
 
 initLogger({
   env: { service: "siaga-app-server" },
@@ -48,6 +52,75 @@ app.use(
     router: appRouter,
   })
 );
+
+app.get("/sse/reports/live", async (c) => {
+  const session = await auth.api.getSession({
+    headers: c.req.raw.headers,
+  });
+  if (!session) {
+    return c.json({ message: "Authentication required" }, 401);
+  }
+  if (session.user.role !== "OPERATOR") {
+    return c.json({ message: "Operator access required" }, 403);
+  }
+
+  c.header("Cache-Control", "no-cache, no-transform");
+  c.header("X-Accel-Buffering", "no");
+
+  return streamSSE(c, async (stream) => {
+    let writeQueue = Promise.resolve();
+    const writeEvent = (
+      event: string,
+      data: object,
+      id?: string
+    ): Promise<void> => {
+      writeQueue = writeQueue
+        .then(() =>
+          stream.writeSSE({
+            data: JSON.stringify(data),
+            event,
+            id,
+          })
+        )
+        .catch(() => undefined);
+      return writeQueue;
+    };
+
+    const unsubscribe = await subscribeToReportLiveEvents(
+      (reportEvent) =>
+        writeEvent(
+          reportEvent.type,
+          reportEvent,
+          `${reportEvent.updatedAt}:${reportEvent.reportId}`
+        ),
+      () =>
+        writeEvent("report.error", {
+          message: "Live report updates are temporarily unavailable",
+        })
+    );
+
+    try {
+      await writeEvent("connected", {
+        connectedAt: new Date().toISOString(),
+      });
+
+      const sendHeartbeat = async (): Promise<void> => {
+        await stream.sleep(SSE_HEARTBEAT_INTERVAL_MS);
+        if (stream.aborted) {
+          return;
+        }
+        await writeEvent("heartbeat", {
+          timestamp: new Date().toISOString(),
+        });
+        await sendHeartbeat();
+      };
+
+      await sendHeartbeat();
+    } finally {
+      await unsubscribe();
+    }
+  });
+});
 
 app.get("/", (c) => c.text("OK"));
 

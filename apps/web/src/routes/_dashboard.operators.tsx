@@ -1,6 +1,10 @@
 import { CreateOperatorDialog } from "@/features/operators/components/create-operator-dialog";
 import { OperatorList } from "@/features/operators/components/operator-list";
 
+export const handle = {
+  dashboardSurface: "standard",
+} as const;
+
 export default function Operators() {
   return (
     <div>
