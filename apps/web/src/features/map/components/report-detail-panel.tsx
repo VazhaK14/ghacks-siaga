@@ -11,12 +11,14 @@ import { cn } from "@siaga-app/ui/lib/utils";
 import {
   ExternalLinkIcon,
   MapPinIcon,
-  PhoneIcon,
   UserRoundIcon,
   XIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { ReportDispatchSection } from "@/features/dispatch/components/report-dispatch-section";
+import { CloseReportDialog } from "@/features/reports/components/close-report-dialog";
+import { ReportEditDialog } from "@/features/reports/components/report-edit-dialog";
 import {
   CATEGORY_CONFIG,
   formatCoordinates,
@@ -32,7 +34,10 @@ interface ReportDetailPanelProps {
   error: DisplayError | null;
   isPending: boolean;
   onClose?: () => void;
+  onReportResolved: (reportId: string) => void;
+  onSelectAgency: (agencyId: string) => void;
   report: ReportDetail | null;
+  selectedAgencyId: string | null;
 }
 
 interface DetailRowProps {
@@ -108,15 +113,6 @@ function ReporterSection({ report }: { report: ReportDetail }) {
         />
         <DetailRow label="Kontak darurat" value={emergencyContact} />
       </dl>
-      {report.contactPhone ? (
-        <a
-          className="mt-3 inline-flex items-center gap-1 font-semibold text-primary-200 text-xs hover:underline"
-          href={`tel:${report.contactPhone}`}
-        >
-          <PhoneIcon aria-hidden className="size-3.5" />
-          Hubungi pelapor
-        </a>
-      ) : null}
     </section>
   );
 }
@@ -158,12 +154,6 @@ function LocationSection({ report }: { report: ReportDetail }) {
 }
 
 function AnalysisSection({ report }: { report: ReportDetail }) {
-  const confidenceScore = report.latestAnalysis?.confidenceScore;
-  const confidenceLabel =
-    confidenceScore === null || confidenceScore === undefined
-      ? "Belum tersedia"
-      : `${Math.round(confidenceScore * 100)}%`;
-
   return (
     <section>
       <h2 className="font-semibold text-foreground text-sm">Analisis AI</h2>
@@ -181,7 +171,6 @@ function AnalysisSection({ report }: { report: ReportDetail }) {
             "Belum tersedia"
           }
         />
-        <DetailRow label="Confidence" value={confidenceLabel} />
       </dl>
     </section>
   );
@@ -238,11 +227,17 @@ function StatusHistorySection({ report }: { report: ReportDetail }) {
 function LoadedReportDetail({
   className,
   onClose,
+  onReportResolved,
+  onSelectAgency,
   report,
+  selectedAgencyId,
 }: {
   className?: string;
   onClose?: () => void;
+  onReportResolved: (reportId: string) => void;
+  onSelectAgency: (agencyId: string) => void;
   report: ReportDetail;
+  selectedAgencyId: string | null;
 }) {
   const category = CATEGORY_CONFIG[report.category];
   const CategoryIcon = category.icon;
@@ -322,8 +317,20 @@ function LoadedReportDetail({
               value={report.handlingMode === "AI" ? "AI" : "Operator"}
             />
           </dl>
+          {report.editBlockReason ? (
+            <p className="mt-3 text-[10px] text-muted-foreground">
+              {report.editBlockReason}
+            </p>
+          ) : null}
         </section>
 
+        <Separator className="my-4" />
+        <ReportDispatchSection
+          onReportResolved={onReportResolved}
+          onSelectAgency={onSelectAgency}
+          reportId={report.id}
+          selectedAgencyId={selectedAgencyId}
+        />
         <Separator className="my-4" />
         <ReporterSection report={report} />
         <Separator className="my-4" />
@@ -333,6 +340,13 @@ function LoadedReportDetail({
         <AdditionalDataSection report={report} />
         <Separator className="my-4" />
         <StatusHistorySection report={report} />
+        <div className="-mx-4 mt-4 -mb-4 flex flex-col gap-2 border-t bg-muted/30 p-4">
+          <ReportEditDialog report={report} />
+          <CloseReportDialog
+            onReportClosed={onReportResolved}
+            report={report}
+          />
+        </div>
       </div>
     </aside>
   );
@@ -342,8 +356,11 @@ export function ReportDetailPanel({
   className,
   error,
   isPending,
+  onReportResolved,
+  onSelectAgency,
   onClose,
   report,
+  selectedAgencyId,
 }: ReportDetailPanelProps) {
   if (isPending) {
     return (
@@ -387,7 +404,10 @@ export function ReportDetailPanel({
     <LoadedReportDetail
       className={className}
       onClose={onClose}
+      onReportResolved={onReportResolved}
+      onSelectAgency={onSelectAgency}
       report={report}
+      selectedAgencyId={selectedAgencyId}
     />
   );
 }

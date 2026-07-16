@@ -1,82 +1,91 @@
-export type Priority = "HIGH" | "MEDIUM" | "LOW";
+import type {
+  DashboardOverview,
+  DashboardPeriod,
+} from "@/features/overview/types";
 
-export const priorityStyles: Record<Priority, { bar: string; badge: string }> =
-  {
-    HIGH: { badge: "bg-primary-300", bar: "bg-primary-300" },
-    LOW: { badge: "bg-green-200", bar: "bg-green-200" },
-    MEDIUM: { badge: "bg-yellow-200", bar: "bg-yellow-200" },
-  };
-
-export interface Metric {
-  dot: string;
+export const DASHBOARD_PERIOD_OPTIONS = [
+  { label: "24 jam", value: "24H" },
+  { label: "7 hari", value: "7D" },
+  { label: "30 hari", value: "30D" },
+] as const satisfies {
   label: string;
-  value: number;
-}
+  value: DashboardPeriod;
+}[];
 
-export const metrics: Metric[] = [
-  { dot: "bg-primary-300", label: "HIGH", value: 1 },
-  { dot: "bg-yellow-200", label: "MEDIUM", value: 1 },
-  { dot: "bg-green-200", label: "LOW", value: 1 },
-  { dot: "bg-neutral-500", label: "REPORT COMPLETE", value: 3 },
-];
+export const DASHBOARD_PERIOD_LABELS = {
+  "7D": "7 hari terakhir",
+  "24H": "24 jam terakhir",
+  "30D": "30 hari terakhir",
+} as const satisfies Record<DashboardPeriod, string>;
 
-export interface Ticket {
-  id: string;
-  meta: string;
-  priority: Priority;
-  status: string;
-  title: string;
-}
+export const INCIDENT_LABELS = {
+  CRIME: "Kriminal",
+  DOMESTIC_VIOLENCE: "Kekerasan domestik",
+  FIRE: "Kebakaran",
+  MEDICAL: "Medis",
+  MISSING_PERSON: "Orang hilang",
+  NATURAL_DISASTER: "Bencana alam",
+  OTHER: "Lainnya",
+  TRAFFIC_ACCIDENT: "Kecelakaan lalu lintas",
+  UNCLASSIFIED: "Belum diklasifikasi",
+} as const satisfies Record<
+  DashboardOverview["incidentBreakdown"][number]["incidentType"],
+  string
+>;
 
-export const tickets: Ticket[] = [
-  {
-    id: "SOS-1048",
-    meta: "SOS-1048 · baru · 19:42",
-    priority: "HIGH",
-    status: "REPORT COMPLETE",
-    title: "Penyusup membawa pisau",
-  },
-  {
-    id: "SOS-1047",
-    meta: "SOS-1047 · 2 menit",
-    priority: "MEDIUM",
-    status: "REPORT COMPLETE",
-    title: "Kecelakaan motor",
-  },
-  {
-    id: "SOS-1046",
-    meta: "SOS-1046 · 4 menit",
-    priority: "LOW",
-    status: "REPORT COMPLETE",
-    title: "Asap panel listrik",
-  },
-  {
-    id: "SOS-1045",
-    meta: "SOS-1045 · 5 menit",
-    priority: "LOW",
-    status: "REPORT COMPLETE",
-    title: "Kertas terbakar",
-  },
-];
+export const UNIT_TYPE_LABELS = {
+  AMBULANCE: "Ambulans",
+  FIRE_DEPARTMENT: "Pemadam",
+  OTHER: "Unit umum",
+  POLICE: "Polisi",
+  SAR: "SAR",
+} as const satisfies Record<
+  DashboardOverview["unitReadiness"][number]["type"],
+  string
+>;
 
-export interface ActivityEntry {
-  event: string;
-  highlighted?: boolean;
-  time: string;
-}
+export const formatDashboardTime = (value: string): string =>
+  new Intl.DateTimeFormat("id-ID", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(new Date(value));
 
-export const activityFeed: ActivityEntry[] = [
-  {
-    event: "Report SOS-1048 selesai → ticket dipublikasikan",
-    highlighted: true,
-    time: "19:42:08",
-  },
-  {
-    event: "Fase report · lokasi & risiko dianalisis",
-    time: "19:42:06",
-  },
-  {
-    event: "Fase report · transkrip pelapor dirangkum",
-    time: "19:42:03",
-  },
-];
+export const formatResponseTime = (seconds: number | null): string => {
+  if (seconds === null) {
+    return "Belum ada data";
+  }
+  if (seconds < 60) {
+    return `${seconds} dtk`;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return remainingSeconds > 0
+    ? `${minutes} m ${remainingSeconds} dtk`
+    : `${minutes} menit`;
+};
+
+export const formatReportAge = (ageMinutes: number): string => {
+  if (ageMinutes < 1) {
+    return "Baru";
+  }
+  if (ageMinutes < 60) {
+    return `${ageMinutes} menit`;
+  }
+
+  const hours = Math.floor(ageMinutes / 60);
+  return `${hours} jam`;
+};
+
+export const formatChartBucket = (
+  value: string,
+  period: DashboardPeriod
+): string =>
+  new Intl.DateTimeFormat("id-ID", {
+    day: period === "24H" ? undefined : "2-digit",
+    hour: period === "24H" ? "2-digit" : undefined,
+    minute: period === "24H" ? "2-digit" : undefined,
+    month: period === "24H" ? undefined : "short",
+    timeZone: "Asia/Jakarta",
+  }).format(new Date(value));

@@ -8,34 +8,62 @@ import {
 } from "@siaga-app/ui/components/sheet";
 import { ListIcon, PanelRightIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router";
 
 import { useActiveReportsQuery, useReportDetailQuery } from "../api";
 import type { MobileMapPanel } from "../types";
+import { useReportCallSimulation } from "../use-report-call-simulation";
 import { useMapWorkspace } from "./map-workspace";
-import { ReportDetailPanel } from "./report-detail-panel";
+import { ReportDetailWorkspace } from "./report-detail-workspace";
 import { ReportQueuePanel } from "./report-queue-panel";
 
 export function MapMonitorScreen() {
-  const { connectionStatus, onSelectReport, selectedReportId } =
-    useMapWorkspace();
+  const {
+    connectionStatus,
+    onDismissReport,
+    onSelectAgency,
+    onSelectReport,
+    selectedAgencyId,
+    selectedReportId,
+  } = useMapWorkspace();
   const activeReportsQuery = useActiveReportsQuery();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedReportId = searchParams.get("reportId");
   const [mobilePanel, setMobilePanel] = useState<MobileMapPanel>(null);
+  const [resolvedReportIds, setResolvedReportIds] = useState(
+    () => new Set<string>()
+  );
   const reportDetailQuery = useReportDetailQuery(selectedReportId);
+  const { endCall, getSession, startCall } = useReportCallSimulation();
+  const callSession = getSession(selectedReportId);
 
-  const reports = useMemo(
+  const allReports = useMemo(
     () => activeReportsQuery.data?.pages.flatMap((page) => page.items) ?? [],
     [activeReportsQuery.data?.pages]
   );
-  const activeCount = activeReportsQuery.data?.pages[0]?.activeCount ?? 0;
+  const reports = useMemo(
+    () => allReports.filter((report) => !resolvedReportIds.has(report.id)),
+    [allReports, resolvedReportIds]
+  );
+  const pendingRemovalCount = useMemo(
+    () =>
+      allReports.filter((report) => resolvedReportIds.has(report.id)).length,
+    [allReports, resolvedReportIds]
+  );
+  const activeCount = Math.max(
+    0,
+    (activeReportsQuery.data?.pages[0]?.activeCount ?? 0) - pendingRemovalCount
+  );
 
   const handleSelectReport = useCallback(
     (reportId: string) => {
       onSelectReport(reportId);
+      setSearchParams({ reportId }, { replace: true });
       if (window.innerWidth < 1280) {
         setMobilePanel("detail");
       }
     },
-    [onSelectReport]
+    [onSelectReport, setSearchParams]
   );
 
   const handleLoadMore = useCallback(async (): Promise<void> => {
@@ -53,16 +81,41 @@ export function MapMonitorScreen() {
   const handleDetailOpenChange = useCallback((open: boolean) => {
     setMobilePanel(open ? "detail" : null);
   }, []);
+  const handleReportResolved = useCallback(
+    (reportId: string) => {
+      setResolvedReportIds((currentReportIds) => {
+        const nextReportIds = new Set(currentReportIds);
+        nextReportIds.add(reportId);
+        return nextReportIds;
+      });
+      onDismissReport(reportId);
+      setSearchParams({}, { replace: true });
+      setMobilePanel(null);
+    },
+    [onDismissReport, setSearchParams]
+  );
 
   useEffect(() => {
     if (selectedReportId || reports.length === 0) {
       return;
     }
-    const firstReportId = reports[0]?.id;
-    if (firstReportId) {
-      onSelectReport(firstReportId);
+    const requestedReport = requestedReportId
+      ? reports.find((report) => report.id === requestedReportId)
+      : null;
+    const nextReportId = requestedReport?.id ?? reports[0]?.id;
+    if (requestedReportId && !requestedReport) {
+      setSearchParams({}, { replace: true });
     }
-  }, [onSelectReport, reports, selectedReportId]);
+    if (nextReportId) {
+      onSelectReport(nextReportId);
+    }
+  }, [
+    onSelectReport,
+    reports,
+    requestedReportId,
+    selectedReportId,
+    setSearchParams,
+  ]);
 
   return (
     <div className="relative size-full min-h-0 overflow-hidden">
@@ -81,11 +134,18 @@ export function MapMonitorScreen() {
           selectedReportId={selectedReportId}
         />
 
-        <ReportDetailPanel
+        <ReportDetailWorkspace
           className="pointer-events-auto absolute inset-y-4 right-4 w-96"
           error={reportDetailQuery.error}
           isPending={reportDetailQuery.isPending}
+          mode="desktop"
+          onEndCall={endCall}
+          onReportResolved={handleReportResolved}
+          onSelectAgency={onSelectAgency}
+          onStartCall={startCall}
           report={reportDetailQuery.data ?? null}
+          selectedAgencyId={selectedAgencyId}
+          session={callSession}
         />
       </div>
 
@@ -155,11 +215,19 @@ export function MapMonitorScreen() {
               Informasi operasional laporan terpilih.
             </SheetDescription>
           </SheetHeader>
-          <ReportDetailPanel
+          <ReportDetailWorkspace
             className="size-full rounded-none bg-transparent shadow-none ring-0 backdrop-blur-none"
             error={reportDetailQuery.error}
             isPending={reportDetailQuery.isPending}
+            key={selectedReportId}
+            mode="mobile"
+            onEndCall={endCall}
+            onReportResolved={handleReportResolved}
+            onSelectAgency={onSelectAgency}
+            onStartCall={startCall}
             report={reportDetailQuery.data ?? null}
+            selectedAgencyId={selectedAgencyId}
+            session={callSession}
           />
         </SheetContent>
       </Sheet>

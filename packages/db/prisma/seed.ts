@@ -5,6 +5,9 @@ import dotenv from "dotenv";
 
 import {
   CommunicationChannel,
+  DispatchAgencyAvailability,
+  DispatchAgencyType,
+  type DispatchAgencyType as DispatchAgencyTypeValue,
   HandlingMode,
   IncidentType,
   type IncidentType as IncidentTypeValue,
@@ -27,6 +30,18 @@ const OPERATOR_NAME = "Default Operator";
 const DEMO_REPORTER_EMAIL = "reporter.demo@siaga.app";
 const DEMO_REPORTER_ID = "demo-reporter-siaga";
 
+interface DemoAgencySeed {
+  address: string;
+  availability: (typeof DispatchAgencyAvailability)[keyof typeof DispatchAgencyAvailability];
+  contactPhone: string;
+  id: string;
+  jurisdiction: string;
+  latitude: number;
+  longitude: number;
+  name: string;
+  type: DispatchAgencyTypeValue;
+}
+
 interface DemoReportSeed {
   address: string;
   category: ReportCategoryValue;
@@ -39,6 +54,119 @@ interface DemoReportSeed {
   summary: string;
   title: string;
 }
+
+const DEMO_AGENCIES: DemoAgencySeed[] = [
+  {
+    address: "Jl. Medan Merdeka Timur, Gambir, Jakarta Pusat",
+    availability: DispatchAgencyAvailability.AVAILABLE,
+    contactPhone: "110",
+    id: "demo-agency-police-gambir",
+    jurisdiction: "Jakarta Pusat",
+    latitude: -6.1768,
+    longitude: 106.8307,
+    name: "Polsek Metro Gambir",
+    type: DispatchAgencyType.POLICE,
+  },
+  {
+    address: "Jl. Sutan Syahrir, Menteng, Jakarta Pusat",
+    availability: DispatchAgencyAvailability.BUSY,
+    contactPhone: "110",
+    id: "demo-agency-police-menteng",
+    jurisdiction: "Jakarta Pusat",
+    latitude: -6.2021,
+    longitude: 106.8373,
+    name: "Polsek Metro Menteng",
+    type: DispatchAgencyType.POLICE,
+  },
+  {
+    address: "Jl. Trunojoyo, Kebayoran Baru, Jakarta Selatan",
+    availability: DispatchAgencyAvailability.AVAILABLE,
+    contactPhone: "110",
+    id: "demo-agency-police-kebayoran",
+    jurisdiction: "Jakarta Selatan",
+    latitude: -6.2388,
+    longitude: 106.8008,
+    name: "Polres Metro Jakarta Selatan",
+    type: DispatchAgencyType.POLICE,
+  },
+  {
+    address: "Jl. Karet Pasar Baru Barat, Tanah Abang",
+    availability: DispatchAgencyAvailability.AVAILABLE,
+    contactPhone: "119",
+    id: "demo-agency-ambulance-tanah-abang",
+    jurisdiction: "Jakarta Pusat",
+    latitude: -6.2071,
+    longitude: 106.8134,
+    name: "Ambulans PSC Tanah Abang",
+    type: DispatchAgencyType.AMBULANCE,
+  },
+  {
+    address: "Jl. Salemba Raya, Senen, Jakarta Pusat",
+    availability: DispatchAgencyAvailability.BUSY,
+    contactPhone: "119",
+    id: "demo-agency-ambulance-salemba",
+    jurisdiction: "Jakarta Pusat",
+    latitude: -6.178,
+    longitude: 106.8488,
+    name: "Ambulans PSC Salemba",
+    type: DispatchAgencyType.AMBULANCE,
+  },
+  {
+    address: "Jl. H.R. Rasuna Said, Setiabudi",
+    availability: DispatchAgencyAvailability.AVAILABLE,
+    contactPhone: "119",
+    id: "demo-agency-ambulance-setiabudi",
+    jurisdiction: "Jakarta Selatan",
+    latitude: -6.2186,
+    longitude: 106.8342,
+    name: "Ambulans PSC Setiabudi",
+    type: DispatchAgencyType.AMBULANCE,
+  },
+  {
+    address: "Jl. K.H. Zainul Arifin, Gambir",
+    availability: DispatchAgencyAvailability.AVAILABLE,
+    contactPhone: "113",
+    id: "demo-agency-fire-gambir",
+    jurisdiction: "Jakarta Pusat",
+    latitude: -6.1647,
+    longitude: 106.8174,
+    name: "Pos Pemadam Gambir",
+    type: DispatchAgencyType.FIRE_DEPARTMENT,
+  },
+  {
+    address: "Jl. Taman Sari Raya, Jakarta Barat",
+    availability: DispatchAgencyAvailability.BUSY,
+    contactPhone: "113",
+    id: "demo-agency-fire-taman-sari",
+    jurisdiction: "Jakarta Barat",
+    latitude: -6.1483,
+    longitude: 106.818,
+    name: "Sektor Pemadam Taman Sari",
+    type: DispatchAgencyType.FIRE_DEPARTMENT,
+  },
+  {
+    address: "Jl. Aipda K.S. Tubun, Palmerah",
+    availability: DispatchAgencyAvailability.AVAILABLE,
+    contactPhone: "115",
+    id: "demo-agency-sar-palmerah",
+    jurisdiction: "DKI Jakarta",
+    latitude: -6.1941,
+    longitude: 106.7984,
+    name: "Unit Siaga SAR Jakarta",
+    type: DispatchAgencyType.SAR,
+  },
+  {
+    address: "Tanjung Priok, Jakarta Utara",
+    availability: DispatchAgencyAvailability.OFFLINE,
+    contactPhone: "115",
+    id: "demo-agency-sar-tanjung-priok",
+    jurisdiction: "Jakarta Utara",
+    latitude: -6.1084,
+    longitude: 106.8806,
+    name: "Pos SAR Tanjung Priok",
+    type: DispatchAgencyType.SAR,
+  },
+];
 
 const DEMO_REPORTS: DemoReportSeed[] = [
   {
@@ -408,9 +536,26 @@ async function seedDemoReports() {
   await prisma.$disconnect();
 }
 
+async function seedDispatchAgencies() {
+  const prisma = createPrismaClient();
+
+  await Promise.all(
+    DEMO_AGENCIES.map((agency) =>
+      prisma.dispatchAgency.upsert({
+        create: agency,
+        update: agency,
+        where: { id: agency.id },
+      })
+    )
+  );
+
+  await prisma.$disconnect();
+}
+
 async function main() {
   await seedOperator();
   await seedDemoReports();
+  await seedDispatchAgencies();
 }
 
 main().catch((error: unknown) => {

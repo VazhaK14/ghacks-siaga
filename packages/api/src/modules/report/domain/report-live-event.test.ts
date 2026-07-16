@@ -18,6 +18,14 @@ describe("report live events", () => {
     expect(parseReportLiveEvent(JSON.stringify(REPORT_EVENT))).toEqual(
       REPORT_EVENT
     );
+
+    const dispatchEvent: ReportLiveEvent = {
+      dispatchId: "dispatch-1",
+      reportId: "report-1",
+      type: "dispatch.updated",
+      updatedAt: "2026-07-16T10:00:00.000Z",
+    };
+    expect(parseReportLiveEvent(dispatchEvent)).toEqual(dispatchEvent);
   });
 
   test("rejects malformed events", () => {
