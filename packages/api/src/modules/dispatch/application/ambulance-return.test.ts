@@ -119,7 +119,7 @@ describe("ambulance return flow", () => {
     expect(repository.lastTransition?.nextStatus).toBe("RETURNING_TO_BASE");
     expect(repository.lastTransition?.nextReportStatus).toBeNull();
     expect(repository.lastTransition?.estimatedReturnAt?.toISOString()).toBe(
-      "2026-07-16T10:00:24.000Z"
+      "2026-07-16T10:00:34.000Z"
     );
     expect(tracking.status).toBe("RETURNING_TO_BASE");
     expect(tracking.canResolve).toBe(false);

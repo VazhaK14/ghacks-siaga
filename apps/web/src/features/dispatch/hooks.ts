@@ -4,13 +4,14 @@ import {
   buildDispatchRouteCoordinates,
   getCoordinateAlongRoute,
 } from "./route-geometry";
-import type { DispatchTracking } from "./types";
+import type { DispatchTracking, RouteCoordinate } from "./types";
 
 const ANIMATION_UPDATE_INTERVAL_MS = 100;
 const ANIMATED_STATUSES = new Set(["EN_ROUTE", "RETURNING_TO_BASE"]);
 
 export function useAnimatedDispatchTracking(
-  dispatch: DispatchTracking | null
+  dispatch: DispatchTracking | null,
+  roadRoute?: RouteCoordinate[]
 ): DispatchTracking | null {
   const [animationTime, setAnimationTime] = useState(() => Date.now());
   const isAnimating = Boolean(
@@ -61,7 +62,7 @@ export function useAnimatedDispatchTracking(
       ? Math.min(1, Math.max(0, (animationTime - startedAt) / duration))
       : 1;
   const [currentLongitude, currentLatitude] = getCoordinateAlongRoute(
-    buildDispatchRouteCoordinates(dispatch),
+    buildDispatchRouteCoordinates(dispatch, roadRoute),
     progress
   );
 

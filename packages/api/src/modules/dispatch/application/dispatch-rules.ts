@@ -8,8 +8,8 @@ import type {
 } from "../domain/entities";
 
 const EARTH_RADIUS_KM = 6371;
-const DEMO_TRAVEL_DURATION_MS = 20_000;
-const DEMO_RETURN_DURATION_MS = 20_000;
+const DEMO_TRAVEL_DURATION_MS = 30_000;
+const DEMO_RETURN_DURATION_MS = 30_000;
 const MINUTES_PER_KILOMETER = 2.5;
 
 const INCIDENT_AGENCY_PRIORITY: Record<

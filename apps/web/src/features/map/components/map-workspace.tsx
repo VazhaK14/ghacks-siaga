@@ -6,6 +6,7 @@ import {
   Suspense,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   useSyncExternalStore,
@@ -13,6 +14,7 @@ import {
 
 import {
   useAgencyBoardQuery,
+  useDispatchRoadRouteQuery,
   useReportDispatchQuery,
 } from "@/features/dispatch/api";
 import { useAnimatedDispatchTracking } from "@/features/dispatch/hooks";
@@ -65,10 +67,14 @@ export function useMapWorkspace(): MapWorkspaceContextValue {
 
 export function MapWorkspace({
   children,
+  isMapFocusMode,
   layout,
+  onMapFocusChange,
 }: {
   children: ReactNode;
+  isMapFocusMode: boolean;
   layout: MapWorkspaceLayout;
+  onMapFocusChange: (isFocused: boolean) => void;
 }) {
   const isClient = useSyncExternalStore(
     subscribeToClient,
@@ -82,13 +88,20 @@ export function MapWorkspace({
     layout === "units" ? null : selectedReportId
   );
   const agencyBoardQuery = useAgencyBoardQuery(layout === "units");
+  const reportDispatch = reportDispatchQuery.data?.activeDispatch ?? null;
+  const reportRoadRouteQuery = useDispatchRoadRouteQuery(reportDispatch);
   const animatedReportDispatch = useAnimatedDispatchTracking(
-    reportDispatchQuery.data?.activeDispatch ?? null
+    reportDispatch,
+    reportRoadRouteQuery.data
   );
   const firstBoardDispatch =
     agencyBoardQuery.data?.find((agency) => agency.activeDispatch)
       ?.activeDispatch ?? null;
-  const animatedBoardDispatch = useAnimatedDispatchTracking(firstBoardDispatch);
+  const boardRoadRouteQuery = useDispatchRoadRouteQuery(firstBoardDispatch);
+  const animatedBoardDispatch = useAnimatedDispatchTracking(
+    firstBoardDispatch,
+    boardRoadRouteQuery.data
+  );
 
   const handleDismissReport = useCallback((reportId: string) => {
     setSelectedReportId((currentReportId) =>
@@ -104,6 +117,35 @@ export function MapWorkspace({
   const handleSelectAgency = useCallback((agencyId: string) => {
     setSelectedAgencyId(agencyId);
   }, []);
+  const handleToggleMapFocus = useCallback(() => {
+    onMapFocusChange(!isMapFocusMode);
+  }, [isMapFocusMode, onMapFocusChange]);
+
+  useEffect(() => {
+    if (layout !== "monitor") {
+      return;
+    }
+
+    const handleMapFocusShortcut = (event: KeyboardEvent) => {
+      const { key, target } = event;
+      if (
+        target instanceof HTMLElement &&
+        ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName)
+      ) {
+        return;
+      }
+      if (key.toLowerCase() === "f") {
+        event.preventDefault();
+        onMapFocusChange(!isMapFocusMode);
+      }
+      if (key === "Escape") {
+        onMapFocusChange(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleMapFocusShortcut);
+    return () => window.removeEventListener("keydown", handleMapFocusShortcut);
+  }, [isMapFocusMode, layout, onMapFocusChange]);
 
   const agencies = useMemo(() => {
     if (layout === "units") {
@@ -142,12 +184,32 @@ export function MapWorkspace({
     animatedReportDispatch,
     layout,
   ]);
+  const dispatchRoutes = useMemo(() => {
+    const routes: Record<
+      string,
+      NonNullable<typeof reportRoadRouteQuery.data>
+    > = {};
+    if (reportDispatch && reportRoadRouteQuery.data) {
+      routes[reportDispatch.id] = reportRoadRouteQuery.data;
+    }
+    if (firstBoardDispatch && boardRoadRouteQuery.data) {
+      routes[firstBoardDispatch.id] = boardRoadRouteQuery.data;
+    }
+    return routes;
+  }, [
+    boardRoadRouteQuery.data,
+    firstBoardDispatch,
+    reportDispatch,
+    reportRoadRouteQuery.data,
+  ]);
 
   const contextValue: MapWorkspaceContextValue = {
     connectionStatus,
+    isMapFocusMode,
     onDismissReport: handleDismissReport,
     onSelectAgency: handleSelectAgency,
     onSelectReport: handleSelectReport,
+    onToggleMapFocus: handleToggleMapFocus,
     selectedAgencyId,
     selectedReportId,
   };
@@ -162,7 +224,12 @@ export function MapWorkspace({
         <LazyMap
           agencies={agencies}
           dispatches={dispatches}
-          layout={layout}
+          dispatchRoutes={dispatchRoutes}
+          layout={
+            isMapFocusMode && layout === "monitor"
+              ? "monitor-collapsed"
+              : layout
+          }
           onSelectAgency={handleSelectAgency}
           onSelectReport={handleSelectReport}
           points={mapPointsQuery.data ?? []}

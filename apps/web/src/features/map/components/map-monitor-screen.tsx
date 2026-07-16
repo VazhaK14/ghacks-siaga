@@ -6,7 +6,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@siaga-app/ui/components/sheet";
-import { ListIcon, PanelRightIcon } from "lucide-react";
+import { cn } from "@siaga-app/ui/lib/utils";
+import { ChevronRightIcon, ListIcon, PanelRightIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 
@@ -20,11 +21,13 @@ import { ReportQueuePanel } from "./report-queue-panel";
 export function MapMonitorScreen() {
   const {
     connectionStatus,
+    isMapFocusMode,
     onDismissReport,
     onSelectAgency,
     onSelectReport,
     selectedAgencyId,
     selectedReportId,
+    onToggleMapFocus,
   } = useMapWorkspace();
   const activeReportsQuery = useActiveReportsQuery();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -120,19 +123,26 @@ export function MapMonitorScreen() {
   return (
     <div className="relative size-full min-h-0 overflow-hidden">
       <div className="pointer-events-none absolute inset-0 z-10 hidden xl:block">
-        <ReportQueuePanel
-          activeCount={activeCount}
-          className="pointer-events-auto absolute inset-y-4 left-[16rem] w-[22rem]"
-          connectionStatus={connectionStatus}
-          error={activeReportsQuery.error}
-          hasNextPage={activeReportsQuery.hasNextPage}
-          isFetchingNextPage={activeReportsQuery.isFetchingNextPage}
-          isPending={activeReportsQuery.isPending}
-          onLoadMore={handleLoadMore}
-          onSelectReport={handleSelectReport}
-          reports={reports}
-          selectedReportId={selectedReportId}
-        />
+        <div className="absolute inset-y-4 left-[16rem] w-[22rem] overflow-hidden">
+          <ReportQueuePanel
+            activeCount={activeCount}
+            className={cn(
+              "pointer-events-auto size-full transition-[transform,opacity] duration-300 ease-out",
+              isMapFocusMode &&
+                "pointer-events-none -translate-x-full opacity-0"
+            )}
+            connectionStatus={connectionStatus}
+            error={activeReportsQuery.error}
+            hasNextPage={activeReportsQuery.hasNextPage}
+            isFetchingNextPage={activeReportsQuery.isFetchingNextPage}
+            isPending={activeReportsQuery.isPending}
+            onLoadMore={handleLoadMore}
+            onSelectReport={handleSelectReport}
+            onToggleVisibility={onToggleMapFocus}
+            reports={reports}
+            selectedReportId={selectedReportId}
+          />
+        </div>
 
         <ReportDetailWorkspace
           className="pointer-events-auto absolute inset-y-4 right-4 w-96"
@@ -149,88 +159,117 @@ export function MapMonitorScreen() {
         />
       </div>
 
-      <div className="pointer-events-auto absolute top-3 left-14 z-10 flex gap-2 md:left-[16rem] xl:hidden">
+      <div
+        className={cn(
+          "pointer-events-none absolute top-1/2 left-2 z-20 hidden -translate-y-1/2 opacity-0 transition-opacity duration-200 xl:left-[16.25rem] xl:block",
+          isMapFocusMode && "pointer-events-auto opacity-100"
+        )}
+      >
         <Button
-          onClick={handleOpenList}
-          size="sm"
+          aria-pressed={isMapFocusMode}
+          className="size-8 rounded-md border border-neutral-300 bg-white p-0 text-neutral-1000 opacity-100 shadow-md hover:bg-neutral-200 focus-visible:ring-2 focus-visible:ring-neutral-700/40"
+          data-map-panel-toggle
+          onClick={onToggleMapFocus}
+          size="icon-sm"
+          title="Tampilkan daftar laporan"
           type="button"
           variant="secondary"
         >
-          <ListIcon data-icon="inline-start" />
-          Laporan ({activeCount})
+          <ChevronRightIcon aria-hidden className="size-5" strokeWidth={3} />
         </Button>
-        {selectedReportId ? (
+      </div>
+
+      {isMapFocusMode ? null : (
+        <div className="pointer-events-auto absolute top-3 left-14 z-10 flex gap-2 md:left-[16rem] xl:hidden">
           <Button
-            onClick={handleOpenDetail}
+            onClick={handleOpenList}
             size="sm"
             type="button"
             variant="secondary"
           >
-            <PanelRightIcon data-icon="inline-start" />
-            Detail
+            <ListIcon data-icon="inline-start" />
+            Laporan ({activeCount})
           </Button>
-        ) : null}
-      </div>
+          {selectedReportId ? (
+            <Button
+              onClick={handleOpenDetail}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              <PanelRightIcon data-icon="inline-start" />
+              Detail
+            </Button>
+          ) : null}
+        </div>
+      )}
 
-      <Sheet onOpenChange={handleListOpenChange} open={mobilePanel === "list"}>
-        <SheetContent
-          className="h-[72svh]! max-h-[72svh] p-0"
-          showCloseButton
-          side="bottom"
+      {!isMapFocusMode && (
+        <Sheet
+          onOpenChange={handleListOpenChange}
+          open={mobilePanel === "list"}
         >
-          <SheetHeader className="sr-only">
-            <SheetTitle>Daftar laporan aktif</SheetTitle>
-            <SheetDescription>
-              Pilih laporan untuk melihat lokasi dan detail.
-            </SheetDescription>
-          </SheetHeader>
-          <ReportQueuePanel
-            activeCount={activeCount}
-            className="size-full rounded-none bg-transparent shadow-none ring-0 backdrop-blur-none"
-            connectionStatus={connectionStatus}
-            error={activeReportsQuery.error}
-            hasNextPage={activeReportsQuery.hasNextPage}
-            isFetchingNextPage={activeReportsQuery.isFetchingNextPage}
-            isPending={activeReportsQuery.isPending}
-            onLoadMore={handleLoadMore}
-            onSelectReport={handleSelectReport}
-            reports={reports}
-            selectedReportId={selectedReportId}
-          />
-        </SheetContent>
-      </Sheet>
+          <SheetContent
+            className="h-[72svh]! max-h-[72svh] p-0"
+            showCloseButton
+            side="bottom"
+          >
+            <SheetHeader className="sr-only">
+              <SheetTitle>Daftar laporan aktif</SheetTitle>
+              <SheetDescription>
+                Pilih laporan untuk melihat lokasi dan detail.
+              </SheetDescription>
+            </SheetHeader>
+            <ReportQueuePanel
+              activeCount={activeCount}
+              className="size-full rounded-none bg-transparent shadow-none ring-0 backdrop-blur-none"
+              connectionStatus={connectionStatus}
+              error={activeReportsQuery.error}
+              hasNextPage={activeReportsQuery.hasNextPage}
+              isFetchingNextPage={activeReportsQuery.isFetchingNextPage}
+              isPending={activeReportsQuery.isPending}
+              onLoadMore={handleLoadMore}
+              onSelectReport={handleSelectReport}
+              reports={reports}
+              selectedReportId={selectedReportId}
+            />
+          </SheetContent>
+        </Sheet>
+      )}
 
-      <Sheet
-        onOpenChange={handleDetailOpenChange}
-        open={mobilePanel === "detail"}
-      >
-        <SheetContent
-          className="h-[78svh]! max-h-[78svh] p-0"
-          showCloseButton
-          side="bottom"
+      {!isMapFocusMode && (
+        <Sheet
+          onOpenChange={handleDetailOpenChange}
+          open={mobilePanel === "detail"}
         >
-          <SheetHeader className="sr-only">
-            <SheetTitle>Detail laporan</SheetTitle>
-            <SheetDescription>
-              Informasi operasional laporan terpilih.
-            </SheetDescription>
-          </SheetHeader>
-          <ReportDetailWorkspace
-            className="size-full rounded-none bg-transparent shadow-none ring-0 backdrop-blur-none"
-            error={reportDetailQuery.error}
-            isPending={reportDetailQuery.isPending}
-            key={selectedReportId}
-            mode="mobile"
-            onEndCall={endCall}
-            onReportResolved={handleReportResolved}
-            onSelectAgency={onSelectAgency}
-            onStartCall={startCall}
-            report={reportDetailQuery.data ?? null}
-            selectedAgencyId={selectedAgencyId}
-            session={callSession}
-          />
-        </SheetContent>
-      </Sheet>
+          <SheetContent
+            className="h-[78svh]! max-h-[78svh] p-0"
+            showCloseButton
+            side="bottom"
+          >
+            <SheetHeader className="sr-only">
+              <SheetTitle>Detail laporan</SheetTitle>
+              <SheetDescription>
+                Informasi operasional laporan terpilih.
+              </SheetDescription>
+            </SheetHeader>
+            <ReportDetailWorkspace
+              className="size-full rounded-none bg-transparent shadow-none ring-0 backdrop-blur-none"
+              error={reportDetailQuery.error}
+              isPending={reportDetailQuery.isPending}
+              key={selectedReportId}
+              mode="mobile"
+              onEndCall={endCall}
+              onReportResolved={handleReportResolved}
+              onSelectAgency={onSelectAgency}
+              onStartCall={startCall}
+              report={reportDetailQuery.data ?? null}
+              selectedAgencyId={selectedAgencyId}
+              session={callSession}
+            />
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 }

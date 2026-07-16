@@ -4,6 +4,7 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type {
   DispatchAgency,
   DispatchTracking,
+  RouteCoordinate,
 } from "@/features/dispatch/types";
 import type { OperationalConnectionStatus } from "@/features/live-updates/types";
 
@@ -18,7 +19,11 @@ export type ReportMapPoint =
 export type LiveConnectionStatus = OperationalConnectionStatus;
 
 export type MobileMapPanel = "list" | "detail" | null;
-export type MapWorkspaceLayout = "default" | "monitor" | "units";
+export type MapWorkspaceLayout =
+  | "default"
+  | "monitor"
+  | "monitor-collapsed"
+  | "units";
 export type CallSimulationPhase =
   | "idle"
   | "calling"
@@ -47,6 +52,7 @@ export interface DisplayError {
 export interface MapCanvasProps {
   agencies: DispatchAgency[];
   dispatches: DispatchTracking[];
+  dispatchRoutes: Record<string, RouteCoordinate[]>;
   layout: MapWorkspaceLayout;
   onSelectAgency: (agencyId: string) => void;
   onSelectReport: (reportId: string) => void;
@@ -57,9 +63,11 @@ export interface MapCanvasProps {
 
 export interface MapWorkspaceContextValue {
   connectionStatus: LiveConnectionStatus;
+  isMapFocusMode: boolean;
   onDismissReport: (reportId: string) => void;
   onSelectAgency: (agencyId: string) => void;
   onSelectReport: (reportId: string) => void;
+  onToggleMapFocus: () => void;
   selectedAgencyId: string | null;
   selectedReportId: string | null;
 }

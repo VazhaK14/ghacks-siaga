@@ -6,7 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@siaga-app/ui/components/dropdown-menu";
-import { Moon, Sun } from "lucide-react";
+import { Layers, Palette } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback } from "react";
 
@@ -15,19 +15,35 @@ export function ModeToggle() {
 
   const handleSetLight = useCallback(() => setTheme("light"), [setTheme]);
   const handleSetDark = useCallback(() => setTheme("dark"), [setTheme]);
+  const handleSetSemiTransparent = useCallback(
+    () => setTheme("semi-transparent"),
+    [setTheme]
+  );
   const handleSetSystem = useCallback(() => setTheme("system"), [setTheme]);
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger render={<Button size="icon" variant="stroke" />}>
-        <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-        <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-        <span className="sr-only">Toggle theme</span>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            aria-label="Pilih tampilan"
+            className="h-9 min-w-32 rounded-lg border border-border bg-transparent px-3 font-semibold text-foreground text-xs shadow-none backdrop-blur-md hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring/40"
+            size="sm"
+            variant="ghost"
+          />
+        }
+      >
+        <Palette aria-hidden />
+        <span>Pilih tampilan</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuGroup>
           <DropdownMenuItem onClick={handleSetLight}>Light</DropdownMenuItem>
           <DropdownMenuItem onClick={handleSetDark}>Dark</DropdownMenuItem>
+          <DropdownMenuItem onClick={handleSetSemiTransparent}>
+            <Layers aria-hidden />
+            Semi transparan
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={handleSetSystem}>System</DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>
