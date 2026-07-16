@@ -1,37 +1,32 @@
 import { env } from "@siaga-app/env/web";
+import { adminClient } from "better-auth/client/plugins";
+import { createAccessControl } from "better-auth/plugins/access";
 import { createAuthClient } from "better-auth/react";
 
-function getServerUrl(url: string) {
-  const normalized = url.endsWith("/") ? url.slice(0, -1) : url;
+import { getServerUrl } from "./get-server-url";
 
-  if (!normalized.startsWith("/")) {
-    return normalized;
-  }
+// Mirrors the access-control roles defined in packages/auth/src/index.ts —
+// keep the two in sync. This is what gives `authClient.admin.*` correct
+// "REPORTER" | "OPERATOR" typing instead of the plugin's default "user" | "admin".
+const statement = {
+  user: ["create", "list", "set-role", "ban", "get", "update"],
+} as const;
 
-  if (typeof window !== "undefined") {
-    return `${window.location.origin}${normalized}`;
-  }
+const ac = createAccessControl(statement);
 
-  const processEnv = (
-    globalThis as {
-      process?: { env?: Record<string, string | undefined> };
-    }
-  ).process?.env;
-  const vercelUrl =
-    processEnv?.VERCEL_ENV === "production"
-      ? (processEnv?.VERCEL_PROJECT_PRODUCTION_URL ?? processEnv?.VERCEL_URL)
-      : (processEnv?.VERCEL_URL ?? processEnv?.VERCEL_PROJECT_PRODUCTION_URL);
-  if (vercelUrl) {
-    const origin = vercelUrl.startsWith("http")
-      ? vercelUrl
-      : `https://${vercelUrl}`;
-    return `${origin}${normalized}`;
-  }
+const reporterRole = ac.newRole({ user: [] });
+const operatorRole = ac.newRole({
+  user: ["create", "list", "set-role", "ban", "get", "update"],
+});
 
-  return `http://localhost:3000${normalized}`;
-}
 export const authClient = createAuthClient({
   // better-auth derives its route-matching base from this URL's path, so the
   // public auth path must equal the server-side mount (/api/auth everywhere)
   baseURL: new URL("/api/auth", getServerUrl(env.VITE_SERVER_URL)).toString(),
+  plugins: [
+    adminClient({
+      ac,
+      roles: { OPERATOR: operatorRole, REPORTER: reporterRole },
+    }),
+  ],
 });

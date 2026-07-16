@@ -53,3 +53,6 @@ coverage
 .cache
 tmp
 temp
+
+# Local planning docs (shared context for AI agents, not for version control)
+.plans

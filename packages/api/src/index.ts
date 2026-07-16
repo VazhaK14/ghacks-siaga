@@ -25,3 +25,14 @@ export const protectedProcedure = procedure.use(({ ctx, next }) => {
     },
   });
 });
+
+export const operatorProcedure = protectedProcedure.use(({ ctx, next }) => {
+  if (ctx.session.user.role !== "OPERATOR") {
+    throw new TRPCError({
+      cause: "Not an operator",
+      code: "FORBIDDEN",
+      message: "Operator access required",
+    });
+  }
+  return next({ ctx });
+});
