@@ -2,10 +2,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { ActivityIndicator, Text, View } from "react-native";
 
 import { SiagaScreen } from "@/components/siaga-screen";
-import { SIAGA_PRIMARY, SIAGA_SUCCESS } from "@/constants/colors";
 import { useReporterReportsQuery } from "@/features/emergency/api";
-
-const TERMINAL_STATUSES = new Set(["RESOLVED", "CLOSED", "CANCELLED"]);
+import { TERMINAL_REPORT_STATUSES } from "@/features/emergency/derive-phase";
+import {
+  INCIDENT_TYPE_LABELS,
+  REPORT_STATUS_LABELS,
+} from "@/features/emergency/status-content";
+import { useSiagaColor } from "@/lib/use-siaga-color";
 
 const formatReportDate = (value: string): string =>
   new Intl.DateTimeFormat("id-ID", {
@@ -15,6 +18,8 @@ const formatReportDate = (value: string): string =>
 
 export function HistoryScreen() {
   const reportsQuery = useReporterReportsQuery();
+  const primary = useSiagaColor("primary");
+  const success = useSiagaColor("success");
 
   return (
     <SiagaScreen contentClassName="pt-[88px] pb-[140px]" isScrollable>
@@ -28,9 +33,7 @@ export function HistoryScreen() {
       </View>
 
       <View className="mt-8 gap-4">
-        {reportsQuery.isPending ? (
-          <ActivityIndicator color={SIAGA_PRIMARY} />
-        ) : null}
+        {reportsQuery.isPending ? <ActivityIndicator color={primary} /> : null}
         {reportsQuery.isError ? (
           <Text className="text-center text-red-600 text-sm">
             Riwayat belum dapat dimuat. Periksa koneksi lalu coba lagi.
@@ -42,7 +45,7 @@ export function HistoryScreen() {
           </Text>
         ) : null}
         {reportsQuery.data?.map((report) => {
-          const isTerminal = TERMINAL_STATUSES.has(report.status);
+          const isTerminal = TERMINAL_REPORT_STATUSES.has(report.status);
           return (
             <View
               className="gap-4 rounded-[14px] border border-siaga-border bg-siaga-panel p-5"
@@ -56,7 +59,7 @@ export function HistoryScreen() {
                     }`}
                   >
                     <Ionicons
-                      color={isTerminal ? SIAGA_SUCCESS : SIAGA_PRIMARY}
+                      color={isTerminal ? success : primary}
                       name={isTerminal ? "checkmark" : "alert"}
                       size={24}
                     />
@@ -67,8 +70,10 @@ export function HistoryScreen() {
                         `Laporan ${report.id.slice(0, 8).toUpperCase()}`}
                     </Text>
                     <Text className="text-[11px] text-siaga-muted-strong">
-                      {report.incidentType ?? "Belum diklasifikasi"} ·{" "}
-                      {formatReportDate(report.createdAt)}
+                      {report.incidentType
+                        ? INCIDENT_TYPE_LABELS[report.incidentType]
+                        : "Belum diklasifikasi"}{" "}
+                      · {formatReportDate(report.createdAt)}
                     </Text>
                   </View>
                 </View>
@@ -77,7 +82,7 @@ export function HistoryScreen() {
                     isTerminal ? "text-siaga-success" : "text-siaga-primary"
                   }`}
                 >
-                  {report.status}
+                  {REPORT_STATUS_LABELS[report.status]}
                 </Text>
               </View>
               <View className="h-px bg-siaga-border-soft" />

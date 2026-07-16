@@ -11,23 +11,19 @@ import { useFonts } from "expo-font";
 import { Stack, usePathname } from "expo-router";
 import { hideAsync, preventAutoHideAsync } from "expo-splash-screen";
 import { HeroUINativeProvider } from "heroui-native";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { Uniwind } from "uniwind";
 
-import {
-  SIAGA_CALL_BG,
-  SIAGA_PRIMARY_DARK,
-  SIAGA_SURFACE,
-} from "@/constants/colors";
 import { AppThemeProvider } from "@/contexts/app-theme-context";
 import { AuthGate } from "@/features/auth/guards";
 import { IncidentProvider } from "@/features/emergency/context";
 import { ProfileGate } from "@/features/profile/components/profile-gate";
 import { ProfileProvider } from "@/features/profile/context";
 import { registerLiveKitGlobals } from "@/lib/register-livekit-globals";
+import { useSiagaColor } from "@/lib/use-siaga-color";
 import { queryClient } from "@/utils/trpc";
 
 registerLiveKitGlobals();
@@ -38,34 +34,24 @@ preventAutoHideAsync();
 // for the rest of the session.
 Uniwind.setTheme("dark");
 
-const SCREEN_COLORS = {
-  call: SIAGA_CALL_BG,
-  connecting: SIAGA_PRIMARY_DARK,
-  surface: SIAGA_SURFACE,
-} as const;
-
-const getRouteBackgroundStyle = (pathname: string) => {
-  if (pathname === "/connecting") {
-    return styles.connectingRoot;
-  }
-
-  if (pathname === "/voice-session") {
-    return styles.callRoot;
-  }
-
-  return styles.surfaceRoot;
-};
-
 export const unstable_settings = {
   initialRouteName: "profile-setup",
 };
 
-function StackLayout() {
+function StackLayout({
+  surface,
+  callBg,
+  primaryDark,
+}: {
+  surface: string;
+  callBg: string;
+  primaryDark: string;
+}) {
   return (
     <Stack
       screenOptions={{
         animation: "fade",
-        contentStyle: { backgroundColor: SCREEN_COLORS.surface },
+        contentStyle: { backgroundColor: surface },
         headerShown: false,
         navigationBarTranslucent: true,
         statusBarTranslucent: true,
@@ -80,12 +66,12 @@ function StackLayout() {
       <Stack.Screen
         name="connecting"
         options={{
-          contentStyle: { backgroundColor: SCREEN_COLORS.connecting },
+          contentStyle: { backgroundColor: primaryDark },
         }}
       />
       <Stack.Screen
         name="voice-session"
-        options={{ contentStyle: { backgroundColor: SCREEN_COLORS.call } }}
+        options={{ contentStyle: { backgroundColor: callBg } }}
       />
       <Stack.Screen name="silent-session" />
       <Stack.Screen name="chat" />
@@ -106,6 +92,20 @@ export default function Layout() {
     PlusJakartaSans_800ExtraBold,
   });
 
+  const surface = useSiagaColor("surface");
+  const callBg = useSiagaColor("call-bg");
+  const primaryDark = useSiagaColor("primary-dark");
+
+  const rootBackground = useMemo(() => {
+    if (pathname === "/connecting") {
+      return primaryDark;
+    }
+    if (pathname === "/voice-session") {
+      return callBg;
+    }
+    return surface;
+  }, [pathname, primaryDark, callBg, surface]);
+
   useEffect(() => {
     if (fontsLoaded || fontError) {
       hideAsync();
@@ -119,7 +119,7 @@ export default function Layout() {
   return (
     <QueryClientProvider client={queryClient}>
       <GestureHandlerRootView
-        style={[styles.root, getRouteBackgroundStyle(pathname)]}
+        style={[styles.root, { backgroundColor: rootBackground }]}
       >
         <KeyboardProvider
           navigationBarTranslucent
@@ -132,7 +132,11 @@ export default function Layout() {
                 <ProfileProvider>
                   <IncidentProvider>
                     <ProfileGate>
-                      <StackLayout />
+                      <StackLayout
+                        callBg={callBg}
+                        primaryDark={primaryDark}
+                        surface={surface}
+                      />
                     </ProfileGate>
                   </IncidentProvider>
                 </ProfileProvider>
@@ -146,16 +150,7 @@ export default function Layout() {
 }
 
 const styles = StyleSheet.create({
-  callRoot: {
-    backgroundColor: SCREEN_COLORS.call,
-  },
-  connectingRoot: {
-    backgroundColor: SCREEN_COLORS.connecting,
-  },
   root: {
     flex: 1,
-  },
-  surfaceRoot: {
-    backgroundColor: SCREEN_COLORS.surface,
   },
 });

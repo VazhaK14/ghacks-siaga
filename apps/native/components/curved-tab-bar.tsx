@@ -4,25 +4,13 @@ import type { BottomTabBarProps } from "expo-router/tabs";
 import { useCallback } from "react";
 import { Pressable, Text, View } from "react-native";
 
-import {
-  NEUTRAL_1000,
-  SIAGA_MUTED_DARK,
-  SIAGA_PANEL,
-  SIAGA_PANEL_DARK,
-  SIAGA_PRIMARY,
-} from "@/constants/colors";
-import { useAppTheme } from "@/contexts/app-theme-context";
+import { useSiagaColor } from "@/lib/use-siaga-color";
 
 const MAX_PHONE_WIDTH = 430;
 const BAR_HEIGHT = 64;
 const BAR_RADIUS = 28;
 const SOS_BUTTON_SIZE = 64;
 const SOS_OVERLAP = SOS_BUTTON_SIZE / 2.4;
-const ACTIVE_COLOR = SIAGA_PRIMARY;
-const INACTIVE_COLOR_LIGHT = NEUTRAL_1000;
-const INACTIVE_COLOR_DARK = SIAGA_MUTED_DARK;
-const BAR_FILL_LIGHT = SIAGA_PANEL;
-const BAR_FILL_DARK = SIAGA_PANEL_DARK;
 
 type TabIconName = keyof typeof Ionicons.glyphMap;
 
@@ -36,6 +24,7 @@ const TAB_ICONS: Record<
 };
 
 interface TabButtonProps {
+  activeColor: string;
   focused: boolean;
   inactiveColor: string;
   label: string;
@@ -44,6 +33,7 @@ interface TabButtonProps {
 }
 
 function TabButton({
+  activeColor,
   focused,
   inactiveColor,
   label,
@@ -74,14 +64,14 @@ function TabButton({
       onPress={handlePress}
     >
       <Ionicons
-        color={focused ? ACTIVE_COLOR : inactiveColor}
+        color={focused ? activeColor : inactiveColor}
         name={iconName}
         size={22}
       />
       <Text
         className="font-extrabold text-[10px]"
         numberOfLines={1}
-        style={{ color: focused ? ACTIVE_COLOR : inactiveColor }}
+        style={{ color: focused ? activeColor : inactiveColor }}
       >
         {label}
       </Text>
@@ -96,9 +86,9 @@ export function CurvedTabBar({
   state,
 }: BottomTabBarProps) {
   const router = useRouter();
-  const { isDark } = useAppTheme();
-  const barFill = isDark ? BAR_FILL_DARK : BAR_FILL_LIGHT;
-  const inactiveColor = isDark ? INACTIVE_COLOR_DARK : INACTIVE_COLOR_LIGHT;
+  const barFill = useSiagaColor("panel");
+  const inactiveColor = useSiagaColor("muted");
+  const activeColor = useSiagaColor("primary");
   const midpoint = Math.ceil(state.routes.length / 2);
   const leftRoutes = state.routes.slice(0, midpoint);
   const rightRoutes = state.routes.slice(midpoint);
@@ -121,6 +111,7 @@ export function CurvedTabBar({
 
       return (
         <TabButton
+          activeColor={activeColor}
           focused={isFocused}
           inactiveColor={inactiveColor}
           key={route.key}
@@ -130,7 +121,14 @@ export function CurvedTabBar({
         />
       );
     },
-    [descriptors, inactiveColor, navigation, state.index, state.routes]
+    [
+      activeColor,
+      descriptors,
+      inactiveColor,
+      navigation,
+      state.index,
+      state.routes,
+    ]
   );
 
   return (

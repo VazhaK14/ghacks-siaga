@@ -1,32 +1,35 @@
-import { Link, Stack } from "expo-router";
-import { Button, Surface } from "heroui-native";
+import { Ionicons } from "@expo/vector-icons";
+import { Stack, useRouter } from "expo-router";
+import { useCallback } from "react";
 import { Text, View } from "react-native";
 
-import { Container } from "@/components/container";
+import { SiagaButton } from "@/components/siaga-button";
+import { SiagaScreen } from "@/components/siaga-screen";
+import { useSiagaColor } from "@/lib/use-siaga-color";
 
 export default function NotFoundScreen() {
+  const router = useRouter();
+  const primary = useSiagaColor("primary");
+
+  const handleHome = useCallback(() => {
+    router.replace("/");
+  }, [router]);
+
   return (
     <>
-      <Stack.Screen options={{ title: "Not Found" }} />
-      <Container>
-        <View className="flex-1 items-center justify-center p-4">
-          <Surface
-            className="max-w-sm items-center rounded-lg p-6"
-            variant="secondary"
-          >
-            <Text className="mb-3 text-4xl">🤔</Text>
-            <Text className="mb-1 font-medium text-foreground text-lg">
-              Page Not Found
-            </Text>
-            <Text className="mb-4 text-center font-sans text-muted text-sm">
-              The page you're looking for doesn't exist.
-            </Text>
-            <Link asChild href="/">
-              <Button size="sm">Go Home</Button>
-            </Link>
-          </Surface>
+      <Stack.Screen options={{ headerShown: false }} />
+      <SiagaScreen contentClassName="items-center justify-center gap-4">
+        <View className="size-16 items-center justify-center rounded-full bg-siaga-soft">
+          <Ionicons color={primary} name="alert-circle-outline" size={32} />
         </View>
-      </Container>
+        <Text className="font-extrabold text-[20px] text-siaga-ink">
+          Halaman tidak ditemukan
+        </Text>
+        <Text className="text-center text-[13px] text-siaga-muted leading-5">
+          Halaman yang kamu cari tidak tersedia di aplikasi SIAGA.
+        </Text>
+        <SiagaButton onPress={handleHome}>Kembali ke beranda</SiagaButton>
+      </SiagaScreen>
     </>
   );
 }

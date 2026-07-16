@@ -12,18 +12,16 @@ import type {
   EmergencyCategory,
   IncidentContextValue,
   IncidentLocation,
-  IncidentPhase,
   IncidentState,
   ReportMode,
 } from "./types";
 
 const INITIAL_INCIDENT: IncidentState = {
-  category: "Kriminal",
+  category: null,
   connectionTarget: "ai",
   idempotencyKey: null,
   location: null,
   mode: null,
-  phase: "idle",
   reportId: null,
 };
 
@@ -40,12 +38,11 @@ export function IncidentProvider({ children }: PropsWithChildren) {
     setIncident((current) => ({
       ...current,
       idempotencyKey: `report-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      phase: "choosing-mode",
     }));
   }, []);
 
   const setMode = useCallback((mode: ReportMode) => {
-    setIncident((current) => ({ ...current, mode, phase: "connecting" }));
+    setIncident((current) => ({ ...current, mode }));
   }, []);
 
   const setConnectionTarget = useCallback((target: ConnectionTarget) => {
@@ -56,10 +53,6 @@ export function IncidentProvider({ children }: PropsWithChildren) {
     setIncident((current) => ({ ...current, location }));
   }, []);
 
-  const setPhase = useCallback((phase: IncidentPhase) => {
-    setIncident((current) => ({ ...current, phase }));
-  }, []);
-
   const setReportId = useCallback((reportId: string) => {
     setIncident((current) => ({ ...current, reportId }));
   }, []);
@@ -68,33 +61,25 @@ export function IncidentProvider({ children }: PropsWithChildren) {
     setIncident(INITIAL_INCIDENT);
   }, []);
 
-  const completeIncident = useCallback(() => {
-    setIncident((current) => ({ ...current, phase: "completed" }));
-  }, []);
-
   const value = useMemo(
     () => ({
       ...incident,
       beginIncident,
       cancelIncident,
-      completeIncident,
       setCategory,
       setConnectionTarget,
       setLocation,
       setMode,
-      setPhase,
       setReportId,
     }),
     [
       incident,
       beginIncident,
       cancelIncident,
-      completeIncident,
       setCategory,
       setConnectionTarget,
       setLocation,
       setMode,
-      setPhase,
       setReportId,
     ]
   );

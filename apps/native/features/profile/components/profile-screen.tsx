@@ -4,15 +4,17 @@ import { FieldError, Input, Label, TextField } from "heroui-native";
 import { useCallback, useState } from "react";
 import { Text, View } from "react-native";
 
+import { useCSSVariable } from "uniwind";
+
 import { SiagaButton } from "@/components/siaga-button";
 import { SiagaScreen } from "@/components/siaga-screen";
-import { NEUTRAL_600, SIAGA_PRIMARY } from "@/constants/colors";
 import { useProfile } from "@/features/profile/context";
 import type { EmergencyProfile } from "@/features/profile/types";
 import {
   type ProfileFieldErrors,
   validateEmergencyProfile,
 } from "@/features/profile/validation";
+import { useSiagaColor } from "@/lib/use-siaga-color";
 
 interface ProfileFieldProps {
   error?: string;
@@ -43,6 +45,7 @@ function ProfileField({
     },
     [field, onChange]
   );
+  const placeholderColor = useCSSVariable("--color-neutral-600") as string;
 
   return (
     <TextField isInvalid={Boolean(error)} isRequired={required}>
@@ -57,7 +60,7 @@ function ProfileField({
         multiline={multiline}
         onChangeText={handleChangeText}
         placeholder={placeholder}
-        placeholderTextColor={NEUTRAL_600}
+        placeholderTextColor={placeholderColor}
         testID={`${field}-input`}
         textAlignVertical={multiline ? "top" : "center"}
         value={value}
@@ -80,11 +83,13 @@ function ProfileSection({
   subtitle,
   title,
 }: ProfileSectionProps) {
+  const primary = useSiagaColor("primary");
+
   return (
     <View className="gap-4 rounded-[14px] border border-siaga-border bg-siaga-panel p-6">
       <View className="gap-1 border-siaga-border border-b pb-3">
         <View className="flex-row items-center gap-2">
-          <Ionicons color={SIAGA_PRIMARY} name={icon} size={20} />
+          <Ionicons color={primary} name={icon} size={20} />
           <Text className="font-semibold text-[22px] text-siaga-body">
             {title}
           </Text>
@@ -106,6 +111,7 @@ interface ProfileScreenProps {
 
 export function ProfileScreen({ isOnboarding = false }: ProfileScreenProps) {
   const router = useRouter();
+  const primary = useSiagaColor("primary");
   const { profile: savedProfile, saveProfile } = useProfile();
   const [draftProfile, setDraftProfile] = useState<
     EmergencyProfile | undefined
@@ -297,7 +303,7 @@ export function ProfileScreen({ isOnboarding = false }: ProfileScreenProps) {
       </ProfileSection>
 
       <View className="flex-row items-center gap-3 rounded-[14px] border border-siaga-border bg-siaga-soft p-4">
-        <Ionicons color={SIAGA_PRIMARY} name="information-circle" size={21} />
+        <Ionicons color={primary} name="information-circle" size={21} />
         <Text className="flex-1 text-[13px] text-siaga-primary leading-5">
           Data ini hanya dikirim saat Anda menekan SOS.
         </Text>

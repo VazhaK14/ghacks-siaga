@@ -1,5 +1,4 @@
 import type {
-  ChatMessage,
   EmergencyCategory,
   IncidentInstruction,
   ReportModeOption,
@@ -38,18 +37,4 @@ export const SAFETY_INSTRUCTIONS: IncidentInstruction[] = [
   { id: "lock", text: "Kunci pintu dan matikan suara ponsel." },
   { id: "window", text: "Jauh dari jendela dan tetap bersama anak." },
   { id: "update", text: "Balas jika posisi pelaku berubah." },
-];
-
-export const INITIAL_CHAT: ChatMessage[] = [
-  { id: "welcome", message: "Apa emergency kamu?", sender: "SIAGA" },
-  {
-    id: "report",
-    message: "Ada maling bawa pisau di rumah. Saya sama anak di kamar atas.",
-    sender: "KAMU",
-  },
-  {
-    id: "instruction",
-    message: "Tetap di kamar dan kunci pintu. Apakah pelaku masih terlihat?",
-    sender: "SIAGA",
-  },
 ];

@@ -9,15 +9,6 @@ export type ReportMode = "voice" | "text" | "silent";
 
 export type ConnectionTarget = "ai" | "operator";
 
-export type IncidentPhase =
-  | "idle"
-  | "choosing-mode"
-  | "connecting"
-  | "active"
-  | "dispatched"
-  | "arrived"
-  | "completed";
-
 export interface IncidentLocation {
   accuracy: number | null;
   address: string;
@@ -25,25 +16,25 @@ export interface IncidentLocation {
   longitude: number;
 }
 
+// Client-only draft state for a SOS flow before/while a backend report
+// exists. Once a report exists, its lifecycle phase is derived from the
+// polled `report.status` (see derive-phase.ts) — not tracked here.
 export interface IncidentState {
   category: EmergencyCategory | null;
   connectionTarget: ConnectionTarget;
   idempotencyKey: string | null;
   location: IncidentLocation | null;
   mode: ReportMode | null;
-  phase: IncidentPhase;
   reportId: string | null;
 }
 
 export interface IncidentContextValue extends IncidentState {
   beginIncident: () => void;
   cancelIncident: () => void;
-  completeIncident: () => void;
   setCategory: (category: EmergencyCategory) => void;
   setConnectionTarget: (target: ConnectionTarget) => void;
   setLocation: (location: IncidentLocation) => void;
   setMode: (mode: ReportMode) => void;
-  setPhase: (phase: IncidentPhase) => void;
   setReportId: (reportId: string) => void;
 }
 
@@ -60,10 +51,4 @@ export interface ReportModeOption {
 export interface IncidentInstruction {
   id: string;
   text: string;
-}
-
-export interface ChatMessage {
-  id: string;
-  message: string;
-  sender: "SIAGA" | "KAMU";
 }

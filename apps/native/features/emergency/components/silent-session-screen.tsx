@@ -3,9 +3,10 @@ import { useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 
+import { useCSSVariable } from "uniwind";
+
 import { SiagaButton } from "@/components/siaga-button";
 import { SiagaScreen } from "@/components/siaga-screen";
-import { NEUTRAL_600, WHITE } from "@/constants/colors";
 import {
   useAppendReporterTextMutation,
   useEndReporterSessionMutation,
@@ -24,6 +25,7 @@ export function SilentSessionScreen() {
   const endSession = useEndReporterSessionMutation();
   const switchMode = useSwitchReporterModeMutation();
   const [draft, setDraft] = useState("");
+  const placeholderColor = useCSSVariable("--color-neutral-600") as string;
   useLiveLocationReporting(reportId);
 
   const messages = useMemo(
@@ -67,7 +69,7 @@ export function SilentSessionScreen() {
       <View className="gap-3 rounded-2xl border border-red-200 bg-red-50 p-5">
         <View className="flex-row items-center gap-3">
           <View className="size-11 items-center justify-center rounded-full bg-siaga-primary">
-            <Ionicons color={WHITE} name="mic" size={22} />
+            <Ionicons color="#fff" name="mic" size={22} />
           </View>
           <View className="flex-1 gap-1">
             <Text className="font-extrabold text-lg text-siaga-ink">
@@ -111,7 +113,7 @@ export function SilentSessionScreen() {
           multiline
           onChangeText={setDraft}
           placeholder="Ketik bila aman..."
-          placeholderTextColor={NEUTRAL_600}
+          placeholderTextColor={placeholderColor}
           value={draft}
         />
         <Pressable
@@ -120,7 +122,7 @@ export function SilentSessionScreen() {
           className="size-11 items-center justify-center rounded-full bg-siaga-primary"
           onPress={handleSend}
         >
-          <Ionicons color={WHITE} name="arrow-up" size={20} />
+          <Ionicons color="#fff" name="arrow-up" size={20} />
         </Pressable>
       </View>
 

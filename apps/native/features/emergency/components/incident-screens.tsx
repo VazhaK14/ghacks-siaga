@@ -1,32 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Image } from "expo-image";
 import { useRouter } from "expo-router";
+import { speak } from "expo-speech";
 import { StatusBar } from "expo-status-bar";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-
-import arrivalMap from "@/assets/images/arrival-map.png";
-import dispatchMap from "@/assets/images/dispatch-map.png";
-import { ReferenceCanvas } from "@/components/reference-canvas";
-import { SiagaButton } from "@/components/siaga-button";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  NEUTRAL_600,
-  SIAGA_BODY,
-  SIAGA_BORDER,
-  SIAGA_CALL_BG,
-  SIAGA_INK,
-  SIAGA_MUTED,
-  SIAGA_MUTED_STRONG,
-  SIAGA_PANEL,
-  SIAGA_PRIMARY,
-  SIAGA_PRIMARY_DARK,
-  SIAGA_PRIORITY,
-  SIAGA_SOFT,
-  SIAGA_SUCCESS,
-  SIAGA_SUCCESS_BORDER,
-  SIAGA_SUCCESS_SOFT,
-  WHITE,
-} from "@/constants/colors";
+  ActivityIndicator,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+
+import { SiagaButton } from "@/components/siaga-button";
+import { SiagaScreen } from "@/components/siaga-screen";
 import {
   useAcknowledgeReportMutation,
   useAppendReporterTextMutation,
@@ -36,15 +22,19 @@ import {
   useRequestCancellationMutation,
   useSwitchReporterModeMutation,
 } from "@/features/emergency/api";
+import { DispatchTimeline } from "@/features/emergency/components/dispatch-timeline";
 import { LiveAudioRoom } from "@/features/emergency/components/live-audio-room";
 import { SAFETY_INSTRUCTIONS } from "@/features/emergency/content";
 import { useIncident } from "@/features/emergency/context";
-import type {
-  ChatMessage,
-  EmergencyCategory,
-  ReportMode,
-} from "@/features/emergency/types";
+import {
+  INCIDENT_TYPE_LABELS,
+  REPORT_STATUS_LABELS,
+} from "@/features/emergency/status-content";
+import type { EmergencyCategory } from "@/features/emergency/types";
 import { useLiveLocationReporting } from "@/features/emergency/use-live-location-reporting";
+import { useReportPhaseNavigation } from "@/features/emergency/use-report-phase-navigation";
+import { useVoiceTranscription } from "@/features/emergency/use-voice-transcription";
+import { useSiagaColor } from "@/lib/use-siaga-color";
 
 const INCIDENT_TYPE_BY_CATEGORY: Record<
   EmergencyCategory,
@@ -58,7 +48,7 @@ const INCIDENT_TYPE_BY_CATEGORY: Record<
 };
 
 const INTERACTION_MODE_BY_REPORT_MODE: Record<
-  ReportMode,
+  "voice" | "text" | "silent",
   "VOICE" | "TEXT" | "SILENT"
 > = {
   silent: "SILENT",
@@ -67,27 +57,21 @@ const INTERACTION_MODE_BY_REPORT_MODE: Record<
 };
 
 const WAVE_BARS = [
-  { height: 28, id: "a" },
-  { height: 45, id: "b" },
-  { height: 62, id: "c" },
-  { height: 79, id: "d" },
-  { height: 96, id: "e" },
-  { height: 99, id: "f" },
-  { height: 82, id: "g" },
-  { height: 65, id: "h" },
-  { height: 48, id: "i" },
-  { height: 31, id: "j" },
-  { height: 34, id: "k" },
-  { height: 51, id: "l" },
-  { height: 68, id: "m" },
-  { height: 85, id: "n" },
-  { height: 102, id: "o" },
-] as const;
-
-const MESSAGE_POSITIONS = [
-  { left: 16, minHeight: 82, top: 163, width: 278 },
-  { left: 90, minHeight: 114, top: 259, width: 284 },
-  { left: 16, minHeight: 100, top: 387, width: 304 },
+  { height: 16, id: "a" },
+  { height: 26, id: "b" },
+  { height: 36, id: "c" },
+  { height: 46, id: "d" },
+  { height: 56, id: "e" },
+  { height: 58, id: "f" },
+  { height: 48, id: "g" },
+  { height: 38, id: "h" },
+  { height: 28, id: "i" },
+  { height: 18, id: "j" },
+  { height: 20, id: "k" },
+  { height: 30, id: "l" },
+  { height: 40, id: "m" },
+  { height: 50, id: "n" },
+  { height: 60, id: "o" },
 ] as const;
 
 const formatDuration = (seconds: number): string => {
@@ -99,21 +83,17 @@ const formatDuration = (seconds: number): string => {
 };
 
 function PulseCore({ isOperator }: { isOperator: boolean }) {
+  const primary = useSiagaColor("primary");
+
   return (
-    <View style={styles.pulseOuter}>
-      <View style={styles.pulseMiddle}>
-        <View style={styles.pulseInner}>
-          <View style={styles.pulseCore}>
-            {isOperator ? (
-              <Ionicons
-                color={SIAGA_PRIMARY}
-                name="headset-outline"
-                size={44}
-              />
-            ) : (
-              <Text style={styles.aiMark}>✦</Text>
-            )}
-          </View>
+    <View className="items-center justify-center rounded-full bg-white/10 p-8">
+      <View className="items-center justify-center rounded-full bg-white/15 p-6">
+        <View className="size-[100px] items-center justify-center rounded-full bg-white">
+          {isOperator ? (
+            <Ionicons color={primary} name="headset-outline" size={44} />
+          ) : (
+            <Text className="font-bold text-4xl text-siaga-primary">✦</Text>
+          )}
         </View>
       </View>
     </View>
@@ -122,9 +102,16 @@ function PulseCore({ isOperator }: { isOperator: boolean }) {
 
 function Waveform() {
   return (
-    <View accessibilityLabel="Visualisasi suara aktif" style={styles.waveform}>
+    <View
+      accessibilityLabel="Visualisasi suara aktif"
+      className="flex-row items-center gap-3"
+    >
       {WAVE_BARS.map((bar) => (
-        <View key={bar.id} style={[styles.waveBar, { height: bar.height }]} />
+        <View
+          className="w-2 rounded-full bg-siaga-priority"
+          key={bar.id}
+          style={{ height: bar.height }}
+        />
       ))}
     </View>
   );
@@ -140,7 +127,6 @@ export function ConnectingScreen() {
     location,
     mode,
     reportId,
-    setPhase,
     setReportId,
   } = useIncident();
   const createReport = useCreateReporterReportMutation();
@@ -166,7 +152,6 @@ export function ConnectingScreen() {
       })
       .then((report) => {
         setReportId(report.id);
-        setPhase("active");
         if (mode === "voice") {
           router.replace("/voice-session");
           return;
@@ -193,7 +178,6 @@ export function ConnectingScreen() {
     mode,
     reportId,
     router,
-    setPhase,
     setReportId,
   ]);
 
@@ -216,28 +200,29 @@ export function ConnectingScreen() {
   }, [cancelIncident, cancellation, reportId, router]);
 
   return (
-    <ReferenceCanvas
-      backgroundColor={SIAGA_PRIMARY_DARK}
-      testID="connecting-screen"
-    >
+    <SiagaScreen contentClassName="items-center justify-center gap-8" isDark>
       <StatusBar style="light" />
       <PulseCore isOperator={isOperator} />
-      <Text style={styles.connectingTitle}>
+      <Text className="text-center font-bold text-2xl text-white leading-9">
         {isOperator
           ? "Menghubungkan ke operator..."
           : "Menghubungkan ke\nSIAGA AI..."}
       </Text>
       {connectionError ? (
-        <Text style={styles.connectionError}>{connectionError}</Text>
+        <Text className="text-center text-[12px] text-white">
+          {connectionError}
+        </Text>
       ) : null}
       <Pressable
         accessibilityRole="button"
+        className="w-full items-center justify-center rounded-xl border border-white py-4"
         onPress={handleCancel}
-        style={styles.cancelAction}
       >
-        <Text style={styles.cancelLabel}>Batalkan SOS</Text>
+        <Text className="font-semibold text-[13px] text-white">
+          Batalkan SOS
+        </Text>
       </Pressable>
-    </ReferenceCanvas>
+    </SiagaScreen>
   );
 }
 
@@ -247,9 +232,30 @@ export function VoiceSessionScreen() {
   const reportQuery = useReporterReportQuery(reportId);
   const endSession = useEndReporterSessionMutation();
   const switchMode = useSwitchReporterModeMutation();
+  const appendText = useAppendReporterTextMutation();
   const [seconds, setSeconds] = useState(0);
   const isOperator = connectionTarget === "operator";
+  const lastSpokenMessageId = useRef<string | null>(null);
   useLiveLocationReporting(reportId);
+
+  const handleFinalTranscript = useCallback(
+    (transcript: string) => {
+      if (!reportId) {
+        return;
+      }
+      appendText.mutate({
+        content: transcript,
+        idempotencyKey: `voice-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        reportId,
+      });
+    },
+    [appendText, reportId]
+  );
+
+  const { interimText, status: sttStatus } = useVoiceTranscription({
+    enabled: Boolean(reportId),
+    onFinalResult: handleFinalTranscript,
+  });
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -257,6 +263,21 @@ export function VoiceSessionScreen() {
     }, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  const latestAssistantMessage = [...(reportQuery.data?.messages ?? [])]
+    .reverse()
+    .find((message) => message.senderType === "AI_AGENT");
+
+  useEffect(() => {
+    if (
+      !latestAssistantMessage ||
+      latestAssistantMessage.id === lastSpokenMessageId.current
+    ) {
+      return;
+    }
+    lastSpokenMessageId.current = latestAssistantMessage.id;
+    speak(latestAssistantMessage.content, { language: "id-ID" });
+  }, [latestAssistantMessage]);
 
   const handleEndCall = useCallback(async () => {
     if (!reportId) {
@@ -285,59 +306,62 @@ export function VoiceSessionScreen() {
         message.type === "TRANSCRIPT_FINAL" || message.senderType === "REPORTER"
     );
 
+  let listeningStateText = "SIAGA SEDANG MENDENGARKAN";
+  if (reportQuery.data?.assignedOperator) {
+    listeningStateText = `DITANGANI ${reportQuery.data.assignedOperator.name.toUpperCase()}`;
+  } else if (sttStatus === "unavailable") {
+    listeningStateText = "SUARA TIDAK TERSEDIA — GUNAKAN CHAT";
+  }
+
   const content = (
-    <ReferenceCanvas
-      backgroundColor={SIAGA_CALL_BG}
-      testID="voice-session-screen"
-    >
+    <SiagaScreen contentClassName="gap-6 pt-14 pb-10" isDark isScrollable>
       <StatusBar style="light" />
-      <Text style={styles.timer}>{formatDuration(seconds)}</Text>
+      <Text className="text-center text-[12px] text-white">
+        {formatDuration(seconds)}
+      </Text>
+
       {isOperator ? null : (
-        <View style={styles.emergencyPrompt}>
-          <Text style={styles.promptEyebrow}>SIAGA AKTIF</Text>
-          <Text style={styles.promptQuestion}>
+        <View className="gap-2 rounded-2xl bg-siaga-primary p-5">
+          <Text className="font-semibold text-[10px] text-white">
+            SIAGA AKTIF
+          </Text>
+          <Text className="font-extrabold text-2xl text-white leading-8">
             {reportQuery.data?.assignedOperator
               ? "Operator sudah mengambil alih"
               : "Ceritakan keadaan daruratnya"}
           </Text>
-          <Text style={styles.promptInstruction}>
+          <Text className="text-[11px] text-white leading-4">
             Mikrofon dikirim melalui ruang laporan privat.
           </Text>
         </View>
       )}
-      <Text
-        style={[
-          styles.listeningState,
-          isOperator ? styles.operatorListeningState : null,
-        ]}
-      >
-        {reportQuery.data?.assignedOperator
-          ? `DITANGANI ${reportQuery.data.assignedOperator.name.toUpperCase()}`
-          : "SIAGA SEDANG MENDENGARKAN"}
+
+      <Text className="text-center font-semibold text-[11px] text-siaga-primary">
+        {listeningStateText}
       </Text>
-      <Waveform />
-      <View style={styles.transcriptCard}>
-        <Text style={styles.transcriptLabel}>TRANSKRIP FINAL TERAKHIR</Text>
-        <Text style={styles.transcriptBody}>
-          {latestTranscript?.content ??
-            "Transkrip akan muncul setelah layanan suara mengirim hasil final."}
+
+      <View className="items-center py-4">
+        <Waveform />
+      </View>
+
+      <View className="gap-3 rounded-xl border border-white/15 bg-white/5 p-4">
+        <Text className="font-semibold text-[10px] text-siaga-primary">
+          TRANSKRIP
+        </Text>
+        <Text className="text-[12px] text-white leading-5">
+          {interimText ||
+            latestTranscript?.content ||
+            "Transkrip akan muncul begitu kamu mulai berbicara."}
         </Text>
       </View>
-      <View style={styles.voiceTextAction}>
-        <SiagaButton onPress={handleUseText} tone="outline">
-          Pindah ke chat
-        </SiagaButton>
-      </View>
-      <View style={styles.endCallAction}>
-        <SiagaButton
-          className="h-[52px]"
-          isDisabled={endSession.isPending}
-          onPress={handleEndCall}
-        >
-          Akhiri komunikasi
-        </SiagaButton>
-      </View>
-    </ReferenceCanvas>
+
+      <SiagaButton onPress={handleUseText} tone="outline">
+        Pindah ke chat
+      </SiagaButton>
+      <SiagaButton isDisabled={endSession.isPending} onPress={handleEndCall}>
+        Akhiri komunikasi
+      </SiagaButton>
+    </SiagaScreen>
   );
 
   if (!reportId) {
@@ -345,34 +369,6 @@ export function VoiceSessionScreen() {
   }
 
   return <LiveAudioRoom reportId={reportId}>{content}</LiveAudioRoom>;
-}
-
-interface MessageBubbleProps {
-  index: number;
-  message: ChatMessage;
-}
-
-function MessageBubble({ index, message }: MessageBubbleProps) {
-  const isUser = message.sender === "KAMU";
-  const position = MESSAGE_POSITIONS[index] ?? {
-    left: 90,
-    minHeight: 82,
-    top: 501 + (index - MESSAGE_POSITIONS.length) * 92,
-    width: 284,
-  };
-
-  return (
-    <View
-      style={[
-        styles.messageBubble,
-        position,
-        isUser ? styles.userBubble : styles.aiBubble,
-      ]}
-    >
-      <Text style={styles.messageSender}>{message.sender}</Text>
-      <Text style={styles.messageBody}>{message.message}</Text>
-    </View>
-  );
 }
 
 export function ChatScreen() {
@@ -383,14 +379,11 @@ export function ChatScreen() {
   const endSession = useEndReporterSessionMutation();
   const switchMode = useSwitchReporterModeMutation();
   const [draft, setDraft] = useState("");
+  const placeholderColor = useSiagaColor("muted");
   useLiveLocationReporting(reportId);
-  const messages = useMemo<ChatMessage[]>(
-    () =>
-      (reportQuery.data?.messages ?? []).slice(-5).map((message) => ({
-        id: message.id,
-        message: message.content,
-        sender: message.senderType === "REPORTER" ? "KAMU" : "SIAGA",
-      })),
+
+  const messages = useMemo(
+    () => (reportQuery.data?.messages ?? []).slice(-8),
     [reportQuery.data?.messages]
   );
 
@@ -433,66 +426,105 @@ export function ChatScreen() {
   }
 
   return (
-    <ReferenceCanvas testID="chat-screen">
-      <View style={styles.chatHeader}>
-        <View style={styles.chatAvatar}>
-          <Text style={styles.chatMark}>✦</Text>
+    <SiagaScreen contentClassName="gap-4 pt-16 pb-8" isScrollable>
+      <View className="flex-row items-center gap-3 rounded-2xl border border-siaga-border bg-siaga-panel p-4">
+        <View className="size-11 items-center justify-center rounded-full bg-siaga-primary">
+          <Text className="font-bold text-lg text-white">✦</Text>
         </View>
-        <View style={styles.chatHeaderCopy}>
-          <Text style={styles.chatTitle}>SIAGA</Text>
-          <View style={styles.chatStatusRow}>
-            <View style={styles.onlineDot} />
-            <Text style={styles.chatStatus}>{chatStatusText}</Text>
+        <View className="gap-1">
+          <Text className="font-extrabold text-[16px] text-siaga-body">
+            SIAGA
+          </Text>
+          <View className="flex-row items-center gap-2">
+            <View className="size-2 rounded-full bg-siaga-success" />
+            <Text className="text-[10px] text-siaga-muted-strong">
+              {chatStatusText}
+            </Text>
           </View>
         </View>
       </View>
-      {messages.map((message, index) => (
-        <MessageBubble index={index} key={message.id} message={message} />
-      ))}
-      <View style={styles.chatComposer}>
+
+      <View className="gap-3">
+        {messages.map((message) => {
+          const isUser = message.senderType === "REPORTER";
+          return (
+            <View
+              className={`max-w-[85%] rounded-2xl border p-3.5 ${
+                isUser
+                  ? "self-end border-siaga-primary bg-siaga-primary"
+                  : "self-start border-siaga-border bg-siaga-panel"
+              }`}
+              key={message.id}
+            >
+              <Text
+                className={`font-semibold text-[10px] ${
+                  isUser ? "text-white/80" : "text-siaga-primary"
+                }`}
+              >
+                {isUser ? "KAMU" : "SIAGA"}
+              </Text>
+              <Text
+                className={`mt-1 text-[12px] leading-5 ${
+                  isUser ? "text-white" : "text-siaga-body"
+                }`}
+              >
+                {message.content}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+
+      <View className="flex-row items-center gap-2 rounded-xl border border-siaga-border bg-siaga-panel p-2">
         <TextInput
           accessibilityLabel="Perubahan situasi"
+          className="min-h-11 flex-1 px-2 text-siaga-body"
           onChangeText={setDraft}
           onSubmitEditing={handleSend}
           placeholder="Tulis perubahan situasi..."
-          placeholderTextColor={NEUTRAL_600}
+          placeholderTextColor={placeholderColor}
           returnKeyType="send"
-          style={styles.chatInput}
           value={draft}
         />
         <Pressable
           accessibilityLabel="Kirim pesan"
           accessibilityRole="button"
+          className="size-11 items-center justify-center rounded-full bg-siaga-primary"
           onPress={handleSend}
-          style={styles.sendAction}
         >
-          <Ionicons color={WHITE} name="arrow-up" size={22} />
+          <Ionicons color="#fff" name="arrow-up" size={22} />
         </Pressable>
       </View>
-      <View style={styles.chatModeActions}>
+
+      <View className="flex-row gap-2.5">
         <Pressable
           accessibilityRole="button"
+          className="h-11 flex-1 items-center justify-center rounded-[10px] border border-siaga-primary"
           onPress={handleUseVoice}
-          style={styles.secondaryChatAction}
         >
-          <Text style={styles.secondaryChatActionText}>Gunakan suara</Text>
+          <Text className="font-semibold text-[10px] text-siaga-primary">
+            Gunakan suara
+          </Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
+          className="h-11 flex-1 items-center justify-center rounded-[10px] border border-siaga-primary"
           onPress={handleEndSession}
-          style={styles.secondaryChatAction}
         >
-          <Text style={styles.secondaryChatActionText}>Akhiri komunikasi</Text>
+          <Text className="font-semibold text-[10px] text-siaga-primary">
+            Akhiri komunikasi
+          </Text>
         </Pressable>
       </View>
-    </ReferenceCanvas>
+    </SiagaScreen>
   );
 }
 
 export function DispatchScreen() {
   const router = useRouter();
   const { reportId } = useIncident();
-  const reportQuery = useReporterReportQuery(reportId);
+  const primary = useSiagaColor("primary");
+  const { phase, reportQuery } = useReportPhaseNavigation(reportId);
   const acknowledgement = useAcknowledgeReportMutation();
   const report = reportQuery.data;
   const dispatch = report?.latestDispatch;
@@ -501,18 +533,14 @@ export function DispatchScreen() {
   const isHelpVisible = report?.acknowledgements.includes("HELP_VISIBLE");
 
   useEffect(() => {
-    if (report?.status === "HELP_ARRIVED") {
+    if (phase === "arrived") {
       router.replace("/arrival");
       return;
     }
-    if (
-      report?.status === "RESOLVED" ||
-      report?.status === "CLOSED" ||
-      report?.status === "CANCELLED"
-    ) {
+    if (phase === "completed") {
       router.replace("/complete");
     }
-  }, [report?.status, router]);
+  }, [phase, router]);
 
   const handleArrival = useCallback(async () => {
     if (!reportId) {
@@ -529,76 +557,79 @@ export function DispatchScreen() {
   }, [router]);
 
   return (
-    <ReferenceCanvas testID="dispatch-screen">
-      <Text style={styles.flowTitle}>Bantuan sedang dikirim</Text>
-      <Text style={styles.dispatchSubtitle}>
-        {dispatch
-          ? `${agencyName} · unit ${unitCode}`
-          : "Laporan aktif dan menunggu konfirmasi dispatch operator."}
-      </Text>
-      <View style={styles.priorityAlert}>
-        <Text style={styles.priorityEyebrow}>{report?.status ?? "AKTIF"}</Text>
-        <Text style={styles.priorityBody}>
+    <SiagaScreen contentClassName="gap-5 pt-16 pb-8" isScrollable>
+      <View className="gap-1">
+        <Text className="font-bold text-[26px] text-siaga-ink leading-9">
+          Bantuan sedang dikirim
+        </Text>
+        <Text className="text-[12px] text-siaga-muted">
+          {dispatch
+            ? `${agencyName} · unit ${unitCode}`
+            : "Laporan aktif dan menunggu konfirmasi dispatch operator."}
+        </Text>
+      </View>
+
+      <View className="gap-2 rounded-2xl bg-siaga-primary-dark p-4">
+        <Text className="font-semibold text-[10px] text-white">
+          {report ? REPORT_STATUS_LABELS[report.status] : "AKTIF"}
+        </Text>
+        <Text className="font-extrabold text-[16px] text-white leading-6">
           {report?.recommendation ??
             "Tetap berada di tempat aman dan kirim perubahan situasi melalui chat."}
         </Text>
       </View>
-      {SAFETY_INSTRUCTIONS.map((instruction, index) => (
-        <View
-          key={instruction.id}
-          style={[styles.instructionCard, { top: 255 + index * 86 }]}
-        >
-          <View style={styles.instructionNumber}>
-            <Text style={styles.instructionNumberText}>{index + 1}</Text>
+
+      <View className="gap-3 rounded-2xl border border-siaga-border bg-siaga-panel p-5">
+        <DispatchTimeline status={dispatch?.status} />
+      </View>
+
+      <View className="gap-3">
+        {SAFETY_INSTRUCTIONS.map((instruction, index) => (
+          <View
+            className="flex-row items-center gap-3 rounded-2xl border border-siaga-border bg-siaga-panel p-4"
+            key={instruction.id}
+          >
+            <View className="size-9 items-center justify-center rounded-full bg-siaga-soft">
+              <Text className="font-extrabold text-[13px] text-siaga-primary">
+                {index + 1}
+              </Text>
+            </View>
+            <Text className="flex-1 text-[11px] text-siaga-body leading-4">
+              {instruction.text}
+            </Text>
           </View>
-          <Text style={styles.instructionText}>{instruction.text}</Text>
-        </View>
-      ))}
-      <View style={styles.dispatchMapFrame}>
-        <Image
-          contentFit="cover"
-          source={dispatchMap}
-          style={styles.mapImage}
-        />
-        <View style={styles.etaBadge}>
-          <Text style={styles.etaText}>
-            {dispatch?.estimatedArrivalAt
-              ? `Estimasi ${new Date(
-                  dispatch.estimatedArrivalAt
-                ).toLocaleTimeString("id-ID", {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}`
-              : "ETA belum tersedia"}
-          </Text>
-        </View>
+        ))}
       </View>
-      <Pressable
-        accessibilityLabel="Buka chat"
-        accessibilityRole="button"
-        onPress={handleOpenChat}
-        style={styles.chatShortcut}
-      >
-        <Ionicons color={SIAGA_PRIMARY} name="chatbox-outline" size={30} />
-      </Pressable>
-      <View style={styles.dispatchAction}>
-        <SiagaButton
-          isDisabled={acknowledgement.isPending || isHelpVisible}
-          onPress={handleArrival}
+
+      <View className="flex-row items-center gap-3">
+        <Pressable
+          accessibilityLabel="Buka chat"
+          accessibilityRole="button"
+          className="size-14 items-center justify-center rounded-xl border border-siaga-primary bg-siaga-panel"
+          onPress={handleOpenChat}
         >
-          {isHelpVisible
-            ? "Konfirmasi sudah dikirim"
-            : "Saya melihat bantuan datang"}
-        </SiagaButton>
+          <Ionicons color={primary} name="chatbox-outline" size={26} />
+        </Pressable>
+        <View className="flex-1">
+          <SiagaButton
+            isDisabled={acknowledgement.isPending || isHelpVisible}
+            onPress={handleArrival}
+          >
+            {isHelpVisible
+              ? "Konfirmasi sudah dikirim"
+              : "Saya melihat bantuan datang"}
+          </SiagaButton>
+        </View>
       </View>
-    </ReferenceCanvas>
+    </SiagaScreen>
   );
 }
 
 export function ArrivalScreen() {
   const router = useRouter();
   const { reportId } = useIncident();
-  const reportQuery = useReporterReportQuery(reportId);
+  const primary = useSiagaColor("primary");
+  const { phase, reportQuery } = useReportPhaseNavigation(reportId);
   const acknowledgement = useAcknowledgeReportMutation();
   const report = reportQuery.data;
   const dispatch = report?.latestDispatch;
@@ -607,14 +638,10 @@ export function ArrivalScreen() {
   const isWithResponder = report?.acknowledgements.includes("WITH_RESPONDER");
 
   useEffect(() => {
-    if (
-      report?.status === "RESOLVED" ||
-      report?.status === "CLOSED" ||
-      report?.status === "CANCELLED"
-    ) {
+    if (phase === "completed") {
       router.replace("/complete");
     }
-  }, [report?.status, router]);
+  }, [phase, router]);
 
   const handleComplete = useCallback(async () => {
     if (!reportId) {
@@ -631,53 +658,67 @@ export function ArrivalScreen() {
   }, [router]);
 
   return (
-    <ReferenceCanvas testID="arrival-screen">
-      <Text style={styles.flowTitle}>Bantuan sudah tiba</Text>
-      <Text style={styles.arrivalSubtitle}>
-        {agencyName} telah ditandai tiba oleh backend.
-      </Text>
-      <View style={styles.arrivedBadge}>
-        <View style={styles.arrivedDot} />
-        <Text style={styles.arrivedText}>
+    <SiagaScreen contentClassName="gap-5 pt-16 pb-8" isScrollable>
+      <View className="gap-1">
+        <Text className="font-bold text-[26px] text-siaga-ink leading-9">
+          Bantuan sudah tiba
+        </Text>
+        <Text className="text-[12px] text-siaga-muted">
+          {agencyName} telah ditandai tiba oleh backend.
+        </Text>
+      </View>
+
+      <View className="flex-row items-center gap-3 rounded-lg border border-siaga-success bg-siaga-success-soft px-3 py-2.5">
+        <View className="size-2.5 rounded-full bg-siaga-success" />
+        <Text className="font-semibold text-[11px] text-siaga-success">
           {agencyName} · {unitCode}
         </Text>
       </View>
-      <View style={styles.unitCard}>
-        <View style={styles.unitTopRow}>
-          <View style={styles.unitAvatar}>
-            <Text style={styles.unitMark}>P</Text>
+
+      <View className="gap-3 rounded-2xl border border-siaga-border bg-siaga-panel p-5">
+        <View className="flex-row items-center gap-4">
+          <View className="size-12 items-center justify-center rounded-full bg-siaga-primary">
+            <Text className="font-extrabold text-lg text-white">P</Text>
           </View>
-          <View style={styles.unitCopy}>
-            <Text style={styles.unitTitle}>{agencyName}</Text>
-            <Text style={styles.unitMeta}>Kode unit: {unitCode}</Text>
+          <View className="gap-1">
+            <Text className="font-extrabold text-[15px] text-siaga-body">
+              {agencyName}
+            </Text>
+            <Text className="text-[10px] text-siaga-muted-strong">
+              Kode unit: {unitCode}
+            </Text>
           </View>
         </View>
-        <Text style={styles.unitAdvice}>
+        <Text className="font-semibold text-[9px] text-siaga-primary leading-4">
           Pastikan identitas petugas sebelum membuka pintu.
         </Text>
       </View>
-      <View style={styles.arrivalMapFrame}>
-        <Image contentFit="cover" source={arrivalMap} style={styles.mapImage} />
+
+      <View className="gap-3 rounded-2xl border border-siaga-border bg-siaga-panel p-5">
+        <DispatchTimeline status={dispatch?.status ?? "ARRIVED"} />
       </View>
-      <Pressable
-        accessibilityLabel="Buka chat"
-        accessibilityRole="button"
-        onPress={handleOpenChat}
-        style={styles.chatShortcut}
-      >
-        <Ionicons color={SIAGA_PRIMARY} name="chatbox-outline" size={30} />
-      </Pressable>
-      <View style={styles.dispatchAction}>
-        <SiagaButton
-          isDisabled={acknowledgement.isPending || isWithResponder}
-          onPress={handleComplete}
+
+      <View className="flex-row items-center gap-3">
+        <Pressable
+          accessibilityLabel="Buka chat"
+          accessibilityRole="button"
+          className="size-14 items-center justify-center rounded-xl border border-siaga-primary bg-siaga-panel"
+          onPress={handleOpenChat}
         >
-          {isWithResponder
-            ? "Konfirmasi sudah dikirim"
-            : "Saya sudah bersama petugas"}
-        </SiagaButton>
+          <Ionicons color={primary} name="chatbox-outline" size={26} />
+        </Pressable>
+        <View className="flex-1">
+          <SiagaButton
+            isDisabled={acknowledgement.isPending || isWithResponder}
+            onPress={handleComplete}
+          >
+            {isWithResponder
+              ? "Konfirmasi sudah dikirim"
+              : "Saya sudah bersama petugas"}
+          </SiagaButton>
+        </View>
       </View>
-    </ReferenceCanvas>
+    </SiagaScreen>
   );
 }
 
@@ -697,728 +738,61 @@ export function CompleteScreen() {
     router.replace("/history");
   }, [cancelIncident, router]);
 
+  if (reportQuery.isPending) {
+    return (
+      <SiagaScreen contentClassName="items-center justify-center">
+        <ActivityIndicator />
+      </SiagaScreen>
+    );
+  }
+
   return (
-    <ReferenceCanvas testID="complete-screen">
-      <View style={styles.completeHalo}>
-        <View style={styles.completeCore}>
-          <Ionicons color={WHITE} name="checkmark" size={58} />
+    <SiagaScreen contentClassName="items-center gap-6 pt-16 pb-8" isScrollable>
+      <View className="items-center justify-center rounded-full bg-siaga-success-soft p-8">
+        <View className="size-[100px] items-center justify-center rounded-full bg-siaga-success">
+          <Ionicons color="#fff" name="checkmark" size={58} />
         </View>
       </View>
-      <Text style={styles.completeTitle}>Kamu sudah aman</Text>
-      <Text style={styles.completeSubtitle}>
-        Laporan {report?.id.slice(0, 8).toUpperCase() ?? "darurat"} berstatus{" "}
-        {report?.status ?? "tersimpan"}.
+      <Text className="text-center font-bold text-[26px] text-siaga-ink">
+        Kamu sudah aman
       </Text>
-      <View style={styles.summaryCard}>
-        <Text style={styles.summaryLabel}>RINGKASAN</Text>
-        <SummaryRow
-          label="Jenis"
-          top={48}
-          value={report?.incidentType ?? "Belum diklasifikasi"}
-        />
-        <SummaryRow
-          label="Bantuan"
-          top={84}
-          value={report?.latestDispatch?.agencyName ?? "Belum ditetapkan"}
-        />
-        <SummaryRow
-          label="Status"
-          top={120}
-          value={report?.status ?? "Memuat"}
-        />
+      <Text className="text-center text-[12px] text-siaga-muted leading-5">
+        Laporan {report?.id.slice(0, 8).toUpperCase() ?? "darurat"} berstatus{" "}
+        {report ? REPORT_STATUS_LABELS[report.status] : "tersimpan"}.
+      </Text>
+
+      <View className="w-full gap-4 rounded-2xl border border-siaga-border bg-siaga-panel p-5">
+        <Text className="font-semibold text-[10px] text-siaga-muted-strong">
+          RINGKASAN
+        </Text>
+        <View className="flex-row justify-between">
+          <Text className="text-[11px] text-siaga-muted-strong">Jenis</Text>
+          <Text className="font-semibold text-[11px] text-siaga-body">
+            {report?.incidentType
+              ? INCIDENT_TYPE_LABELS[report.incidentType]
+              : "Belum diklasifikasi"}
+          </Text>
+        </View>
+        <View className="flex-row justify-between">
+          <Text className="text-[11px] text-siaga-muted-strong">Bantuan</Text>
+          <Text className="font-semibold text-[11px] text-siaga-body">
+            {report?.latestDispatch?.agencyName ?? "Belum ditetapkan"}
+          </Text>
+        </View>
+        <View className="flex-row justify-between">
+          <Text className="text-[11px] text-siaga-muted-strong">Status</Text>
+          <Text className="font-semibold text-[11px] text-siaga-body">
+            {report ? REPORT_STATUS_LABELS[report.status] : "Memuat"}
+          </Text>
+        </View>
       </View>
-      <View style={styles.homeAction}>
+
+      <View className="w-full gap-3">
         <SiagaButton onPress={handleHome}>Kembali ke halaman utama</SiagaButton>
-      </View>
-      <View style={styles.historyAction}>
         <SiagaButton onPress={handleHistory} tone="outline">
           Lihat riwayat laporan
         </SiagaButton>
       </View>
-    </ReferenceCanvas>
+    </SiagaScreen>
   );
 }
-
-interface SummaryRowProps {
-  label: string;
-  top: number;
-  value: string;
-}
-
-function SummaryRow({ label, top, value }: SummaryRowProps) {
-  return (
-    <View style={[styles.summaryRow, { top }]}>
-      <Text style={styles.summaryRowLabel}>{label}</Text>
-      <Text style={styles.summaryRowValue}>{value}</Text>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  aiBubble: {
-    backgroundColor: SIAGA_PANEL,
-  },
-  aiMark: {
-    color: SIAGA_PRIMARY,
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: 34,
-    lineHeight: 46,
-  },
-  arrivalMapFrame: {
-    borderCurve: "continuous",
-    borderRadius: 14,
-    height: 325,
-    left: 24,
-    overflow: "hidden",
-    position: "absolute",
-    top: 385,
-    width: 342,
-  },
-  arrivalSubtitle: {
-    color: SIAGA_MUTED,
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 12,
-    left: 24,
-    lineHeight: 16,
-    position: "absolute",
-    top: 130,
-  },
-  arrivedBadge: {
-    alignItems: "center",
-    backgroundColor: SIAGA_SUCCESS_SOFT,
-    borderColor: SIAGA_SUCCESS_BORDER,
-    borderCurve: "continuous",
-    borderRadius: 8,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: 12,
-    height: 40,
-    left: 24,
-    paddingHorizontal: 12,
-    position: "absolute",
-    top: 175,
-    width: 342,
-  },
-  arrivedDot: {
-    backgroundColor: SIAGA_SUCCESS,
-    borderCurve: "continuous",
-    borderRadius: 5,
-    height: 10,
-    width: 10,
-  },
-  arrivedText: {
-    color: SIAGA_SUCCESS,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 11,
-  },
-  cancelAction: {
-    alignItems: "center",
-    borderColor: WHITE,
-    borderCurve: "continuous",
-    borderRadius: 12,
-    borderWidth: 1,
-    height: 50,
-    justifyContent: "center",
-    left: 64,
-    position: "absolute",
-    top: 760,
-    width: 262,
-  },
-  cancelLabel: {
-    color: WHITE,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  chatAvatar: {
-    alignItems: "center",
-    backgroundColor: SIAGA_PRIMARY,
-    borderCurve: "continuous",
-    borderRadius: 22,
-    height: 44,
-    justifyContent: "center",
-    width: 44,
-  },
-  chatComposer: {
-    alignItems: "center",
-    backgroundColor: SIAGA_PANEL,
-    borderColor: SIAGA_BORDER,
-    borderCurve: "continuous",
-    borderRadius: 12,
-    borderWidth: 1,
-    flexDirection: "row",
-    height: 62,
-    left: 16,
-    paddingHorizontal: 12,
-    position: "absolute",
-    top: 736,
-    width: 358,
-  },
-  chatHeader: {
-    alignItems: "center",
-    backgroundColor: SIAGA_PANEL,
-    borderColor: SIAGA_BORDER,
-    borderCurve: "continuous",
-    borderRadius: 14,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: 14,
-    height: 74,
-    left: 16,
-    paddingHorizontal: 16,
-    position: "absolute",
-    top: 71,
-    width: 358,
-  },
-  chatHeaderCopy: {
-    gap: 5,
-  },
-  chatInput: {
-    color: SIAGA_BODY,
-    flex: 1,
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 11,
-    height: 44,
-    paddingHorizontal: 6,
-  },
-  chatMark: {
-    color: WHITE,
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: 24,
-  },
-  chatModeActions: {
-    flexDirection: "row",
-    gap: 10,
-    left: 16,
-    position: "absolute",
-    top: 676,
-    width: 358,
-  },
-  chatShortcut: {
-    alignItems: "center",
-    backgroundColor: SIAGA_PANEL,
-    borderColor: SIAGA_PRIMARY,
-    borderCurve: "continuous",
-    borderRadius: 12,
-    borderWidth: 1,
-    height: 54,
-    justifyContent: "center",
-    left: 24,
-    position: "absolute",
-    top: 744,
-    width: 54,
-  },
-  chatStatus: {
-    color: SIAGA_MUTED_STRONG,
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 10,
-    lineHeight: 14,
-  },
-  chatStatusRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 6,
-  },
-  chatTitle: {
-    color: SIAGA_BODY,
-    fontFamily: "PlusJakartaSans_800ExtraBold",
-    fontSize: 16,
-    lineHeight: 20,
-  },
-  completeCore: {
-    alignItems: "center",
-    backgroundColor: SIAGA_SUCCESS,
-    borderCurve: "continuous",
-    borderRadius: 50,
-    height: 100,
-    justifyContent: "center",
-    width: 100,
-  },
-  completeHalo: {
-    alignItems: "center",
-    backgroundColor: SIAGA_SUCCESS_SOFT,
-    borderCurve: "continuous",
-    borderRadius: 80,
-    height: 160,
-    justifyContent: "center",
-    left: 115,
-    position: "absolute",
-    top: 72,
-    width: 160,
-  },
-  completeSubtitle: {
-    color: SIAGA_MUTED,
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 12,
-    left: 24,
-    lineHeight: 16,
-    position: "absolute",
-    textAlign: "center",
-    top: 306,
-    width: 342,
-  },
-  completeTitle: {
-    color: SIAGA_INK,
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: 28,
-    left: 24,
-    lineHeight: 41,
-    position: "absolute",
-    textAlign: "center",
-    top: 258,
-    width: 342,
-  },
-  connectingTitle: {
-    color: WHITE,
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: 26,
-    left: 32,
-    lineHeight: 35,
-    position: "absolute",
-    textAlign: "center",
-    top: 488,
-    width: 326,
-  },
-  connectionError: {
-    color: WHITE,
-    fontFamily: "PlusJakartaSans_500Medium",
-    fontSize: 11,
-    left: 44,
-    lineHeight: 17,
-    position: "absolute",
-    textAlign: "center",
-    top: 570,
-    width: 302,
-  },
-  dispatchAction: {
-    height: 54,
-    left: 86,
-    position: "absolute",
-    top: 744,
-    width: 280,
-  },
-  dispatchMapFrame: {
-    borderCurve: "continuous",
-    borderRadius: 14,
-    height: 197,
-    left: 24,
-    overflow: "hidden",
-    position: "absolute",
-    top: 514,
-    width: 342,
-  },
-  dispatchSubtitle: {
-    color: SIAGA_MUTED,
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 12,
-    left: 24,
-    lineHeight: 16,
-    position: "absolute",
-    top: 128,
-  },
-  emergencyPrompt: {
-    backgroundColor: SIAGA_PRIMARY,
-    borderCurve: "continuous",
-    borderRadius: 14,
-    experimental_backgroundImage: `linear-gradient(135deg, ${SIAGA_PRIMARY} 0%, ${SIAGA_PRIMARY_DARK} 100%)`,
-    height: 166,
-    left: 24,
-    padding: 18,
-    position: "absolute",
-    top: 102,
-    width: 342,
-  },
-  endCallAction: {
-    height: 52,
-    left: 24,
-    position: "absolute",
-    top: 756,
-    width: 342,
-  },
-  etaBadge: {
-    backgroundColor: SIAGA_PANEL,
-    borderCurve: "continuous",
-    borderRadius: 8,
-    left: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    position: "absolute",
-    top: 12,
-  },
-  etaText: {
-    color: SIAGA_BODY,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 10,
-  },
-  flowTitle: {
-    color: SIAGA_INK,
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: 28,
-    left: 24,
-    lineHeight: 38,
-    position: "absolute",
-    top: 88,
-    width: 342,
-  },
-  historyAction: {
-    height: 54,
-    left: 24,
-    position: "absolute",
-    top: 748,
-    width: 342,
-  },
-  homeAction: {
-    height: 54,
-    left: 24,
-    position: "absolute",
-    top: 682,
-    width: 342,
-  },
-  instructionCard: {
-    alignItems: "center",
-    backgroundColor: SIAGA_PANEL,
-    borderColor: SIAGA_BORDER,
-    borderCurve: "continuous",
-    borderRadius: 14,
-    borderWidth: 1,
-    flexDirection: "row",
-    gap: 13,
-    height: 66,
-    left: 24,
-    paddingHorizontal: 14,
-    position: "absolute",
-    width: 342,
-  },
-  instructionNumber: {
-    alignItems: "center",
-    backgroundColor: SIAGA_SOFT,
-    borderCurve: "continuous",
-    borderRadius: 18,
-    height: 36,
-    justifyContent: "center",
-    width: 36,
-  },
-  instructionNumberText: {
-    color: SIAGA_PRIMARY,
-    fontFamily: "PlusJakartaSans_800ExtraBold",
-    fontSize: 14,
-  },
-  instructionText: {
-    color: SIAGA_BODY,
-    flex: 1,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  listeningState: {
-    color: SIAGA_PRIMARY,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 10,
-    left: 24,
-    lineHeight: 15,
-    position: "absolute",
-    textAlign: "center",
-    top: 309,
-    width: 342,
-  },
-  mapImage: {
-    height: "100%",
-    width: "100%",
-  },
-  messageBody: {
-    color: SIAGA_BODY,
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  messageBubble: {
-    borderColor: SIAGA_BORDER,
-    borderCurve: "continuous",
-    borderRadius: 14,
-    borderWidth: 1,
-    gap: 9,
-    padding: 14,
-    position: "absolute",
-  },
-  messageSender: {
-    color: SIAGA_PRIMARY,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 10,
-    lineHeight: 14,
-  },
-  onlineDot: {
-    backgroundColor: SIAGA_SUCCESS,
-    borderCurve: "continuous",
-    borderRadius: 4,
-    height: 8,
-    width: 8,
-  },
-  operatorListeningState: {
-    top: 91,
-  },
-  priorityAlert: {
-    backgroundColor: SIAGA_PRIMARY_DARK,
-    borderCurve: "continuous",
-    borderRadius: 14,
-    height: 67,
-    left: 24,
-    paddingHorizontal: 17,
-    paddingVertical: 12,
-    position: "absolute",
-    top: 165,
-    width: 342,
-  },
-  priorityBody: {
-    color: WHITE,
-    fontFamily: "PlusJakartaSans_800ExtraBold",
-    fontSize: 17,
-    lineHeight: 24,
-  },
-  priorityEyebrow: {
-    color: WHITE,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 10,
-    lineHeight: 14,
-  },
-  promptEyebrow: {
-    color: WHITE,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 10,
-    lineHeight: 14,
-  },
-  promptInstruction: {
-    color: WHITE,
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 10,
-    lineHeight: 15,
-    marginTop: 6,
-  },
-  promptQuestion: {
-    color: WHITE,
-    fontFamily: "PlusJakartaSans_800ExtraBold",
-    fontSize: 25,
-    lineHeight: 38,
-    marginTop: 10,
-    maxWidth: 296,
-  },
-  pulseCore: {
-    alignItems: "center",
-    backgroundColor: WHITE,
-    borderCurve: "continuous",
-    borderRadius: 50,
-    height: 100,
-    justifyContent: "center",
-    width: 100,
-  },
-  pulseInner: {
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.24)",
-    borderCurve: "continuous",
-    borderRadius: 79,
-    height: 158,
-    justifyContent: "center",
-    width: 158,
-  },
-  pulseMiddle: {
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.16)",
-    borderCurve: "continuous",
-    borderRadius: 110,
-    height: 220,
-    justifyContent: "center",
-    width: 220,
-  },
-  pulseOuter: {
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.09)",
-    borderCurve: "continuous",
-    borderRadius: 140,
-    height: 280,
-    justifyContent: "center",
-    left: 55,
-    position: "absolute",
-    top: 176,
-    width: 280,
-  },
-  secondaryChatAction: {
-    alignItems: "center",
-    borderColor: SIAGA_PRIMARY,
-    borderCurve: "continuous",
-    borderRadius: 10,
-    borderWidth: 1,
-    flex: 1,
-    height: 44,
-    justifyContent: "center",
-  },
-  secondaryChatActionText: {
-    color: SIAGA_PRIMARY,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 10,
-  },
-  sendAction: {
-    alignItems: "center",
-    backgroundColor: SIAGA_PRIMARY,
-    borderCurve: "continuous",
-    borderRadius: 22,
-    height: 44,
-    justifyContent: "center",
-    width: 44,
-  },
-  summaryCard: {
-    backgroundColor: SIAGA_PANEL,
-    borderColor: SIAGA_BORDER,
-    borderCurve: "continuous",
-    borderRadius: 14,
-    borderWidth: 1,
-    height: 172,
-    left: 24,
-    position: "absolute",
-    top: 362,
-    width: 342,
-  },
-  summaryLabel: {
-    color: SIAGA_MUTED_STRONG,
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 10,
-    left: 16,
-    lineHeight: 14,
-    position: "absolute",
-    top: 14,
-  },
-  summaryRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    left: 16,
-    position: "absolute",
-    width: 310,
-  },
-  summaryRowLabel: {
-    color: SIAGA_MUTED_STRONG,
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  summaryRowValue: {
-    color: SIAGA_BODY,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 11,
-    lineHeight: 16,
-  },
-  timer: {
-    color: WHITE,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 12,
-    left: 164,
-    lineHeight: 16,
-    position: "absolute",
-    textAlign: "center",
-    top: 56,
-    width: 62,
-  },
-  transcriptBody: {
-    color: WHITE,
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 11,
-    lineHeight: 18,
-    marginTop: 14,
-  },
-  transcriptCard: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderColor: "rgba(255,255,255,0.14)",
-    borderCurve: "continuous",
-    borderRadius: 12,
-    borderWidth: 1,
-    height: 166,
-    left: 24,
-    padding: 16,
-    position: "absolute",
-    top: 500,
-    width: 342,
-  },
-  transcriptLabel: {
-    color: SIAGA_PRIMARY,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 10,
-    lineHeight: 14,
-  },
-  unitAdvice: {
-    color: SIAGA_PRIMARY,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: 9,
-    lineHeight: 14,
-  },
-  unitAvatar: {
-    alignItems: "center",
-    backgroundColor: SIAGA_PRIMARY,
-    borderCurve: "continuous",
-    borderRadius: 24,
-    height: 48,
-    justifyContent: "center",
-    width: 48,
-  },
-  unitCard: {
-    backgroundColor: SIAGA_PANEL,
-    borderColor: SIAGA_BORDER,
-    borderCurve: "continuous",
-    borderRadius: 14,
-    borderWidth: 1,
-    gap: 12,
-    height: 116,
-    left: 24,
-    padding: 18,
-    position: "absolute",
-    top: 242,
-    width: 342,
-  },
-  unitCopy: {
-    gap: 4,
-  },
-  unitMark: {
-    color: WHITE,
-    fontFamily: "PlusJakartaSans_800ExtraBold",
-    fontSize: 18,
-  },
-  unitMeta: {
-    color: SIAGA_MUTED_STRONG,
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: 10,
-    lineHeight: 15,
-  },
-  unitTitle: {
-    color: SIAGA_BODY,
-    fontFamily: "PlusJakartaSans_800ExtraBold",
-    fontSize: 15,
-    lineHeight: 20,
-  },
-  unitTopRow: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 16,
-  },
-  userBubble: {
-    backgroundColor: SIAGA_SOFT,
-  },
-  voiceTextAction: {
-    height: 48,
-    left: 24,
-    position: "absolute",
-    top: 690,
-    width: 342,
-  },
-  waveBar: {
-    backgroundColor: SIAGA_PRIORITY,
-    borderCurve: "continuous",
-    borderRadius: 4,
-    width: 8,
-  },
-  waveform: {
-    alignItems: "center",
-    flexDirection: "row",
-    gap: 12,
-    height: 102,
-    left: 48,
-    position: "absolute",
-    top: 348,
-    width: 288,
-  },
-});
