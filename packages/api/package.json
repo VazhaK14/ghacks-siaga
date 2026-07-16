@@ -16,6 +16,7 @@
     "@siaga-app/env": "workspace:*",
     "@trpc/client": "catalog:",
     "@trpc/server": "catalog:",
+    "@upstash/redis": "^1.38.0",
     "dotenv": "catalog:",
     "zod": "catalog:"
   },

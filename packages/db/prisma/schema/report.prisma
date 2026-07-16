@@ -47,6 +47,12 @@ enum ChannelSwitchReason {
   OPERATOR_REQUEST
 }
 
+enum ReportClosureReason {
+  PRANK_CALL
+  INCOMPLETE_REPORT
+  OTHER
+}
+
 model EmergencyReport {
   id String @id @default(cuid())
 
@@ -75,6 +81,11 @@ model EmergencyReport {
   assignedOperatorId String?
   assignedOperator   User?   @relation("ReportsAsOperator", fields: [assignedOperatorId], references: [id])
 
+  closureReason       ReportClosureReason?
+  closureNote         String?
+  closedByOperatorId  String?
+  closedByOperator    User?                @relation("ReportsClosedByOperator", fields: [closedByOperatorId], references: [id])
+
   isDemo Boolean @default(false)
 
   createdAt  DateTime  @default(now())
@@ -93,6 +104,7 @@ model EmergencyReport {
   @@index([status, category])
   @@index([reporterId])
   @@index([assignedOperatorId])
+  @@index([closedByOperatorId])
   @@map("emergency_report")
 }
 

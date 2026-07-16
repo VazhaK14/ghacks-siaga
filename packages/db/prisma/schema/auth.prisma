@@ -37,6 +37,7 @@ model User {
   sentMessages      Message[]         @relation("MessageSenderUser")
   aiFeedback        AIFeedback[]      @relation("AIFeedbackOperator")
   dispatchRequests  DispatchRequest[] @relation("DispatchedByOperator")
+  closedReports     EmergencyReport[] @relation("ReportsClosedByOperator")
 
   @@unique([email])
   @@map("user")

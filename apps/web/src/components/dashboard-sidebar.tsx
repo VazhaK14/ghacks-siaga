@@ -1,6 +1,7 @@
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -16,6 +17,16 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@siaga-app/ui/components/sidebar";
+import {
+  ClipboardListIcon,
+  GaugeIcon,
+  LogOutIcon,
+  MapPinnedIcon,
+  SettingsIcon,
+  ShieldCheckIcon,
+  SirenIcon,
+  UsersIcon,
+} from "lucide-react";
 import { useCallback } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router";
 
@@ -23,12 +34,12 @@ import { authClient } from "@/lib/auth-client";
 import { getInitials } from "@/lib/get-initials";
 
 const NAV_ITEMS = [
-  { label: "Dashboard", to: "/" },
-  { label: "Map Monitor", to: "/map-monitor" },
-  { label: "Laporan", to: "/laporan" },
-  { label: "Unit Respons", to: "/unit-respons" },
-  { label: "Operator", to: "/operators" },
-  { label: "Pengaturan", to: "/pengaturan" },
+  { icon: GaugeIcon, label: "Dashboard", to: "/" },
+  { icon: MapPinnedIcon, label: "Laporan Aktif", to: "/map-monitor" },
+  { icon: ClipboardListIcon, label: "Riwayat Laporan", to: "/laporan" },
+  { icon: SirenIcon, label: "Unit Respons", to: "/unit-respons" },
+  { icon: UsersIcon, label: "Operator", to: "/operators" },
+  { icon: SettingsIcon, label: "Pengaturan", to: "/pengaturan" },
 ] as const;
 
 interface DashboardSidebarUser {
@@ -38,7 +49,7 @@ interface DashboardSidebarUser {
 }
 
 const NAV_MENU_BUTTON_CLASSNAME =
-  "rounded-md text-primary-foreground hover:bg-primary-300/40 hover:text-primary-foreground data-active:bg-primary-300 data-active:text-primary-foreground data-active:hover:bg-primary-300";
+  "rounded-md px-3 text-sidebar-foreground hover:bg-muted hover:text-foreground data-active:bg-primary-10 data-active:font-semibold data-active:text-primary-300 data-active:hover:bg-primary-10 data-active:hover:text-primary-300";
 
 export function DashboardSidebar({ user }: { user: DashboardSidebarUser }) {
   const navigate = useNavigate();
@@ -56,34 +67,43 @@ export function DashboardSidebar({ user }: { user: DashboardSidebarUser }) {
 
   return (
     <Sidebar
-      className="border-none bg-gradient-to-b from-primary-400 to-primary-500"
+      className="z-20 border-none bg-transparent p-4 [&_[data-slot=sidebar-inner]]:rounded-md [&_[data-slot=sidebar-inner]]:bg-popover/95 [&_[data-slot=sidebar-inner]]:shadow-xl [&_[data-slot=sidebar-inner]]:ring-1 [&_[data-slot=sidebar-inner]]:ring-foreground/10 [&_[data-slot=sidebar-inner]]:backdrop-blur-sm"
       collapsible="offcanvas"
+      variant="floating"
     >
-      <SidebarHeader className="px-4 py-6">
-        <p className="font-extrabold font-sans text-primary-foreground text-xl tracking-tight">
-          SIAGA
-        </p>
-        <p className="-mt-2 font-sans text-[10px] text-primary-foreground/70 tracking-widest">
-          COMMAND CENTER
-        </p>
+      <SidebarHeader className="border-b px-4 py-4">
+        <span className="flex items-center gap-3">
+          <span className="flex size-9 items-center justify-center rounded-md bg-primary-10 text-primary-300">
+            <ShieldCheckIcon aria-hidden />
+          </span>
+          <span>
+            <span className="block font-extrabold text-base text-foreground">
+              SIAGA
+            </span>
+            <span className="block text-[9px] text-muted-foreground">
+              Command Center
+            </span>
+          </span>
+        </span>
       </SidebarHeader>
 
-      <SidebarContent className="px-2">
+      <SidebarContent className="px-3 py-4">
         <SidebarGroup className="gap-1 p-0">
-          <SidebarMenu className="gap-3">
-            {NAV_ITEMS.map((item) => (
-              <SidebarMenuItem key={item.to}>
+          <SidebarMenu className="gap-1">
+            {NAV_ITEMS.map(({ icon: Icon, label, to }) => (
+              <SidebarMenuItem key={to}>
                 <SidebarMenuButton
                   className={NAV_MENU_BUTTON_CLASSNAME}
                   isActive={
-                    item.to === "/"
+                    to === "/"
                       ? location.pathname === "/"
-                      : location.pathname.startsWith(item.to)
+                      : location.pathname.startsWith(to)
                   }
-                  render={<NavLink end={item.to === "/"} to={item.to} />}
-                  size="lg"
+                  render={<NavLink end={to === "/"} to={to} />}
+                  size="default"
                 >
-                  {item.label}
+                  <Icon aria-hidden />
+                  <span>{label}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
@@ -91,34 +111,44 @@ export function DashboardSidebar({ user }: { user: DashboardSidebarUser }) {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="border-t p-3">
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
               <button
-                className="flex w-full items-center gap-3 rounded-xl bg-neutral-100 p-3 text-left"
+                className="flex w-full items-center gap-3 rounded-md bg-muted/70 p-2 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 type="button"
               />
             }
           >
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary-10 font-extrabold text-primary-300 text-xs">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary-10 font-extrabold text-primary-300 text-xs">
               {getInitials(user.name)}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate font-semibold text-neutral-1000 text-xs">
+              <span className="block truncate font-semibold text-foreground text-xs">
                 {user.name}
               </span>
-              <span className="block truncate text-[9px] text-neutral-700">
+              <span className="block truncate text-[9px] text-muted-foreground">
                 {user.role === "OPERATOR" ? "Operator" : user.role}
               </span>
             </span>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" side="top">
-            <DropdownMenuLabel>{user.email}</DropdownMenuLabel>
+          <DropdownMenuContent
+            align="start"
+            className="rounded-md"
+            side="top"
+            sideOffset={8}
+          >
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>{user.email}</DropdownMenuLabel>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleSignOut} variant="destructive">
-              Sign Out
-            </DropdownMenuItem>
+            <DropdownMenuGroup>
+              <DropdownMenuItem onClick={handleSignOut} variant="destructive">
+                <LogOutIcon aria-hidden />
+                Keluar
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarFooter>
