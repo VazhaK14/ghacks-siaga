@@ -43,5 +43,10 @@ export interface ReportRepository {
   listArchived: (
     input: ListArchivedReportsInput
   ) => Promise<ArchivedReportPage>;
+  reviewAcousticSignal: (
+    reportId: string,
+    signalId: string,
+    status: "CONFIRMED" | "REJECTED"
+  ) => Promise<ReportDetail>;
   updateDetail: (input: UpdateReportDetailInput) => Promise<ReportDetail>;
 }

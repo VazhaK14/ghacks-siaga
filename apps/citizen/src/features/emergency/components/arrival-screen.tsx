@@ -45,14 +45,14 @@ export const ArrivalScreen = () => {
       type: "WITH_RESPONDER",
     });
   };
-  const handleHome = () => navigate("/", { replace: true });
+  const handleHistory = () => navigate("/history", { replace: true });
   const handleOpenChat = () => navigate("/chat");
 
   if (!reportId) {
     return (
       <MobilePage className="items-center justify-center gap-4">
         <p>Laporan aktif tidak ditemukan.</p>
-        <Button onClick={handleHome}>Ke beranda</Button>
+        <Button onClick={handleHistory}>Ke riwayat</Button>
       </MobilePage>
     );
   }

@@ -16,7 +16,7 @@ export const EMERGENCY_CATEGORIES: EmergencyCategory[] = [
 
 export const REPORT_MODES: ReportModeOption[] = [
   {
-    body: "SIAGA mendengarkan dan menampilkan transkrip langsung.",
+    body: "Berbicara dua arah dengan AI SIAGA yang menanyakan informasi penting.",
     icon: Volume2Icon,
     id: "voice",
     title: "Bicara dengan suara",
@@ -28,7 +28,7 @@ export const REPORT_MODES: ReportModeOption[] = [
     title: "Chat dengan teks",
   },
   {
-    body: "Perangkat tetap hening. Ketik informasi hanya saat aman.",
+    body: "Perangkat tetap hening sambil mengirim transkrip dan sinyal bahaya ke operator.",
     icon: VolumeXIcon,
     id: "silent",
     title: "Mode senyap",

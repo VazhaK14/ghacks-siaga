@@ -1,6 +1,7 @@
 import {
   skipToken,
   useInfiniteQuery,
+  useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
@@ -35,6 +36,19 @@ export function useReportDetailQuery(reportId: string | null) {
 
 export function useReportMapPointsQuery() {
   return useQuery(trpc.report.listActiveMapPoints.queryOptions());
+}
+
+export function useReviewAcousticSignalMutation() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.report.reviewAcousticSignal.mutationOptions({
+      onSuccess: async (report) => {
+        await queryClient.invalidateQueries({
+          queryKey: trpc.report.getDetail.queryKey({ reportId: report.id }),
+        });
+      },
+    })
+  );
 }
 
 export function useReportLiveUpdates(

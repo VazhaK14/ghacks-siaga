@@ -11,6 +11,21 @@ enum ReportStatus {
   CANCELLED
 }
 
+enum IntakeStatus {
+  COLLECTING
+  FINALIZING
+  FINALIZED
+}
+
+enum IntakeCompletionReason {
+  ENOUGH_INFORMATION
+  URGENT_PARTIAL
+  QUESTION_LIMIT
+  USER_ENDED
+  TECHNICAL_FAILURE
+  ACOUSTIC_TRIGGER
+}
+
 enum ReportCategory {
   UNCATEGORIZED
   LOW
@@ -93,6 +108,12 @@ model EmergencyReport {
   summary        String?
   recommendation String?
   extractedData  Json?
+
+  intakeStatus           IntakeStatus            @default(COLLECTING)
+  intakeCompletionReason IntakeCompletionReason?
+  intakeCompletedAt      DateTime?
+  intakeQuestionCount    Int                     @default(0)
+  missingCriticalFields  Json?
 
   contactPhoneSnapshot String?
   latitude             Float?

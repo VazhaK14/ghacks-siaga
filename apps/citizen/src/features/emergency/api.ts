@@ -55,12 +55,28 @@ export const useUpdateReporterLocationMutation = () => {
   );
 };
 
-export const useSwitchReporterModeMutation = () => {
+export const useAppendAcousticSignalMutation = () => {
   const invalidate = useInvalidateReporterReports();
   return useMutation(
-    trpc.report.switchMode.mutationOptions({ onSuccess: invalidate })
+    trpc.report.appendAcousticSignal.mutationOptions({ onSuccess: invalidate })
   );
 };
+
+export const useGetReporterLiveKitConnectionMutation = () =>
+  useMutation(trpc.report.getLiveKitToken.mutationOptions());
+
+export const useActivateReporterSessionMutation = () => {
+  const invalidate = useInvalidateReporterReports();
+  return useMutation(
+    trpc.report.activateSession.mutationOptions({ onSuccess: invalidate })
+  );
+};
+
+export const useRealtimeTranscriptionTokenMutation = () =>
+  useMutation(trpc.report.getRealtimeTranscriptionToken.mutationOptions());
+
+export const useSynthesizeSpeechMutation = () =>
+  useMutation(trpc.report.synthesizeSpeech.mutationOptions());
 
 export const useEndReporterSessionMutation = () => {
   const invalidate = useInvalidateReporterReports();

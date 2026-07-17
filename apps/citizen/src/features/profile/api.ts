@@ -8,8 +8,12 @@ import type { EmergencyProfile } from "./types";
 
 type ProfileUpdateInput = inferRouterInputs<AppRouter>["profile"]["update"];
 
-export const useReporterProfileQuery = () =>
-  useQuery({ ...trpc.profile.get.queryOptions(), retry: false });
+export const useReporterProfileQuery = (enabled = true) =>
+  useQuery({
+    ...trpc.profile.get.queryOptions(),
+    enabled,
+    retry: false,
+  });
 
 export const useUpdateReporterProfileMutation = () => {
   const queryClient = useQueryClient();
@@ -17,9 +21,9 @@ export const useUpdateReporterProfileMutation = () => {
 
   const mutateAsync = async (profile: EmergencyProfile) => {
     const result = await mutation.mutateAsync(profile as ProfileUpdateInput);
-    await queryClient.invalidateQueries({
-      queryKey: trpc.profile.get.queryKey(),
-    });
+    const profileQueryKey = trpc.profile.get.queryKey();
+    await queryClient.cancelQueries({ queryKey: profileQueryKey });
+    queryClient.setQueryData(profileQueryKey, result);
     return result;
   };
 

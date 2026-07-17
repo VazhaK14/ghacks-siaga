@@ -18,6 +18,7 @@ export interface ReporterProfileDetail {
   contactName: string;
   contactPhone: string;
   fullName: string;
+  isComplete: boolean;
   medications: string;
   phoneNumber: string;
   specialNeeds: string;

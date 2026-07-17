@@ -13,6 +13,14 @@ const bloodTypeSchema = z.enum([
   "UNKNOWN",
 ]);
 
+const phoneSchema = z
+  .string()
+  .trim()
+  .refine((value) => {
+    const digitCount = value.replace(/\D/g, "").length;
+    return digitCount >= 8 && digitCount <= 15;
+  }, "Nomor telepon harus berisi 8–15 digit.");
+
 export const reporterProfileOutputSchema = z.object({
   address: z.string(),
   age: z.string(),
@@ -22,6 +30,7 @@ export const reporterProfileOutputSchema = z.object({
   contactName: z.string(),
   contactPhone: z.string(),
   fullName: z.string(),
+  isComplete: z.boolean(),
   medications: z.string(),
   phoneNumber: z.string(),
   specialNeeds: z.string(),
@@ -40,9 +49,9 @@ export const reporterProfileUpdateSchema = z.object({
   bloodType: bloodTypeSchema,
   conditions: z.string().trim().max(1000),
   contactName: z.string().trim().min(2).max(200),
-  contactPhone: z.string().trim().min(8).max(30),
+  contactPhone: phoneSchema,
   fullName: z.string().trim().min(2).max(200),
   medications: z.string().trim().max(1000),
-  phoneNumber: z.string().trim().max(30),
+  phoneNumber: phoneSchema,
   specialNeeds: z.string().trim().max(1000),
 });

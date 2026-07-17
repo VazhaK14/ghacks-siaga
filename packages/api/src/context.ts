@@ -11,6 +11,11 @@ export async function createContext({ context }: CreateContextOptions) {
   });
   return {
     auth: null,
+    requestIp:
+      context.req.header("x-forwarded-for")?.split(",")[0]?.trim() ??
+      context.req.header("cf-connecting-ip") ??
+      context.req.header("x-real-ip") ??
+      "unknown",
     session,
   };
 }

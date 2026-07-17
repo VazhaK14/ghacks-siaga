@@ -225,6 +225,12 @@ const toReportDetail = (report: ReportDetailRow): ReportDetail => {
     handlingMode: report.handlingMode,
     id: report.id,
     incidentType: report.incidentType,
+    intakeCompletedAt: report.intakeCompletedAt
+      ? toIsoString(report.intakeCompletedAt)
+      : null,
+    intakeCompletionReason: report.intakeCompletionReason,
+    intakeQuestionCount: report.intakeQuestionCount,
+    intakeStatus: report.intakeStatus,
     interactionMode: report.interactionMode,
     latestAnalysis: latestAnalysis
       ? {
@@ -243,6 +249,11 @@ const toReportDetail = (report: ReportDetailRow): ReportDetail => {
       ...message,
       createdAt: toIsoString(message.createdAt),
     })),
+    missingCriticalFields: Array.isArray(report.missingCriticalFields)
+      ? report.missingCriticalFields.filter(
+          (field): field is string => typeof field === "string"
+        )
+      : [],
     recommendation: report.recommendation,
     recording: recording ?? null,
     reporter: {
@@ -276,6 +287,31 @@ const isPrismaConflict = (error: unknown): boolean => {
 };
 
 export class PrismaReportRepository implements ReportRepository {
+  async reviewAcousticSignal(
+    reportId: string,
+    signalId: string,
+    status: "CONFIRMED" | "REJECTED"
+  ): Promise<ReportDetail> {
+    const updated = await prisma.acousticSignal.updateMany({
+      data: { status },
+      where: { id: signalId, reportId },
+    });
+    if (updated.count !== 1) {
+      throw new ReportUpdateApplicationError(
+        "NOT_FOUND",
+        "Sinyal akustik tidak ditemukan"
+      );
+    }
+    const detail = await this.findActiveDetail(reportId);
+    if (!detail) {
+      throw new ReportUpdateApplicationError(
+        "NOT_FOUND",
+        "Laporan aktif tidak ditemukan"
+      );
+    }
+    return detail;
+  }
+
   async claimAndTakeover(
     reportId: string,
     operatorId: string

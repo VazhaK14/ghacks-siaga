@@ -101,7 +101,7 @@ export const ConnectingScreen = () => {
       }
     }
     incident.cancelIncident();
-    navigate("/", { replace: true });
+    navigate("/history", { replace: true });
   };
   const handleRestart = () => navigate("/sos", { replace: true });
 

@@ -24,10 +24,7 @@ import { MobilePage } from "@/components/mobile-page";
 
 import { useReporterReportQuery, useReporterReportsQuery } from "../api";
 import { useIncident } from "../context";
-import {
-  ACTIVE_REPORT_STATUSES,
-  ACTIVE_SESSION_STATUSES,
-} from "../derive-phase";
+import { ACTIVE_SESSION_STATUSES } from "../derive-phase";
 import { getReportMode, getResumeRoute } from "../resume-active-report";
 import { INCIDENT_TYPE_LABELS, REPORT_STATUS_LABELS } from "../status-content";
 import { DispatchTimeline } from "./dispatch-timeline";
@@ -46,19 +43,11 @@ export const StatusScreen = () => {
   const incident = useIncident();
   const selectedReport = useMemo(() => {
     const reports = reportsQuery.data ?? [];
-    const requestedReport = requestedReportId
-      ? reports.find(
+    return requestedReportId
+      ? (reports.find(
           (reportListItem) => reportListItem.id === requestedReportId
-        )
-      : undefined;
-    return (
-      requestedReport ??
-      reports.find((reportListItem) =>
-        ACTIVE_REPORT_STATUSES.has(reportListItem.status)
-      ) ??
-      reports[0] ??
-      null
-    );
+        ) ?? null)
+      : null;
   }, [reportsQuery.data, requestedReportId]);
   const reportQuery = useReporterReportQuery(selectedReport?.id ?? null);
   const reportDetail = reportQuery.data;
@@ -117,9 +106,9 @@ export const StatusScreen = () => {
             <EmptyMedia variant="icon">
               <ActivityIcon aria-hidden="true" />
             </EmptyMedia>
-            <EmptyTitle>Belum ada laporan</EmptyTitle>
+            <EmptyTitle>Laporan tidak ditemukan</EmptyTitle>
             <EmptyDescription>
-              Status laporan akan tampil di sini setelah SOS dikirim.
+              Kembali ke Riwayat dan pilih laporan yang ingin dilihat.
             </EmptyDescription>
           </EmptyHeader>
         </Empty>

@@ -9,6 +9,30 @@ export type ReporterReportStatus = ActiveReportStatus | TerminalReportStatus;
 export type ReporterInteractionMode = "VOICE" | "TEXT" | "SILENT";
 export type ReporterResponderPreference = "AI" | "OPERATOR";
 export type ReporterAcknowledgementType = "HELP_VISIBLE" | "WITH_RESPONDER";
+export type ReporterIntakeStatus = "COLLECTING" | "FINALIZING" | "FINALIZED";
+export type ReporterIntakeCompletionReason =
+  | "ENOUGH_INFORMATION"
+  | "URGENT_PARTIAL"
+  | "QUESTION_LIMIT"
+  | "USER_ENDED"
+  | "TECHNICAL_FAILURE"
+  | "ACOUSTIC_TRIGGER";
+export type CriticalIntakeField =
+  | "INCIDENT"
+  | "LOCATION"
+  | "IMMEDIATE_DANGER"
+  | "PEOPLE_AFFECTED";
+export type AssistantIntakeRecommendation =
+  | "CONTINUE"
+  | "FINALIZE"
+  | "URGENT_FINALIZE";
+export type AssistantDelivery = "CHAT" | "VOICE" | "SILENT";
+export type ReporterTextSource =
+  | "CHAT"
+  | "VOICE_TRANSCRIPT"
+  | "VOICE_SUPPORT_TRANSCRIPT"
+  | "SILENT_TRANSCRIPT"
+  | "SUPPORT_CHAT";
 
 export interface ReporterMessage {
   content: string;
@@ -21,6 +45,7 @@ export interface ReporterMessage {
     | "OPERATOR_TEXT"
     | "AI_TEXT"
     | "TRANSCRIPT_FINAL"
+    | "SUPPLEMENTAL_TEXT"
     | "SYSTEM";
 }
 
@@ -38,6 +63,7 @@ export interface ReporterReportListItem {
 
 export interface ReporterReportDetail extends ReporterReportListItem {
   acknowledgements: ReporterAcknowledgementType[];
+  acousticSignals: ReporterAcousticSignal[];
   address: string | null;
   assignedOperator: {
     id: string;
@@ -52,6 +78,10 @@ export interface ReporterReportDetail extends ReporterReportListItem {
     reason: string;
     status: "PENDING" | "APPROVED" | "REJECTED";
   } | null;
+  intakeCompletedAt: string | null;
+  intakeCompletionReason: ReporterIntakeCompletionReason | null;
+  intakeQuestionCount: number;
+  intakeStatus: ReporterIntakeStatus;
   latestDispatch: {
     agencyName: string | null;
     estimatedArrivalAt: string | null;
@@ -61,6 +91,7 @@ export interface ReporterReportDetail extends ReporterReportListItem {
   latitude: number | null;
   longitude: number | null;
   messages: ReporterMessage[];
+  missingCriticalFields: CriticalIntakeField[];
   recommendation: string | null;
   recordingStatus:
     | "NOT_STARTED"
@@ -90,16 +121,49 @@ export interface AppendReporterTextInput {
   idempotencyKey: string;
   reporterId: string;
   reportId: string;
+  source: ReporterTextSource;
 }
 
 export interface AssistantReportUpdate {
   category: ReportCategory;
   extractedData: Record<string, string>;
   incidentType: IncidentType | null;
+  intakeRecommendation: AssistantIntakeRecommendation;
+  missingCriticalFields: CriticalIntakeField[];
   recommendation: string | null;
   reply: string;
   summary: string;
   title: string;
+}
+
+export interface IntakeDecision {
+  missingCriticalFields: CriticalIntakeField[];
+  reason: ReporterIntakeCompletionReason | null;
+  shouldFinalize: boolean;
+}
+
+export interface ReporterAcousticSignal {
+  code:
+    | "SCREAM"
+    | "GUNSHOT"
+    | "EXPLOSION"
+    | "CRYING"
+    | "GLASS_BREAKING"
+    | "AGGRESSIVE_SHOUTING";
+  confidence: number;
+  createdAt: string;
+  id: string;
+}
+
+export interface AppendAcousticSignalInput {
+  code: ReporterAcousticSignal["code"];
+  confidence: number;
+  endedAt: Date;
+  modelId: string;
+  modelVersion?: string;
+  reporterId: string;
+  reportId: string;
+  startedAt: Date;
 }
 
 export interface ReporterReportRepository {
@@ -112,12 +176,17 @@ export interface ReporterReportRepository {
     reportId: string,
     reporterId: string
   ) => Promise<ReporterReportDetail>;
+  appendAcousticSignal: (
+    input: AppendAcousticSignalInput
+  ) => Promise<ReporterReportDetail>;
   appendReporterText: (
     input: AppendReporterTextInput
   ) => Promise<ReporterReportDetail>;
   applyAssistantUpdate: (
     reportId: string,
-    update: AssistantReportUpdate
+    update: AssistantReportUpdate,
+    decision: IntakeDecision,
+    delivery: AssistantDelivery
   ) => Promise<ReporterReportDetail>;
   create: (input: CreateReporterReportInput) => Promise<ReporterReportDetail>;
   endSession: (
@@ -140,11 +209,6 @@ export interface ReporterReportRepository {
     reportId: string,
     reporterId: string,
     reason: string
-  ) => Promise<ReporterReportDetail>;
-  switchMode: (
-    reportId: string,
-    reporterId: string,
-    mode: ReporterInteractionMode
   ) => Promise<ReporterReportDetail>;
   updateLocation: (
     reportId: string,
@@ -176,4 +240,23 @@ export interface CaseAssistant {
   analyze: (
     report: ReporterReportDetail
   ) => Promise<AssistantReportUpdate | null>;
+}
+
+export interface RealtimeTranscriptionAccess {
+  available: boolean;
+  message: string | null;
+  modelId: "scribe_v2_realtime";
+  token: string | null;
+}
+
+export interface SynthesizedSpeech {
+  audioBase64: string | null;
+  available: boolean;
+  message: string | null;
+  mimeType: "audio/mpeg";
+}
+
+export interface VoiceAiGateway {
+  createRealtimeTranscriptionAccess: () => Promise<RealtimeTranscriptionAccess>;
+  synthesize: (text: string) => Promise<SynthesizedSpeech>;
 }

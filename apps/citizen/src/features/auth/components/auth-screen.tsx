@@ -1,5 +1,5 @@
 import { Alert, AlertDescription } from "@siaga-app/ui/components/alert";
-import { Button } from "@siaga-app/ui/components/button";
+import { Button, buttonVariants } from "@siaga-app/ui/components/button";
 import {
   Card,
   CardContent,
@@ -15,7 +15,7 @@ import {
   FieldLabel,
 } from "@siaga-app/ui/components/field";
 import { Input } from "@siaga-app/ui/components/input";
-import { SirenIcon } from "lucide-react";
+import { PhoneCallIcon, SirenIcon } from "lucide-react";
 import type { FormEvent } from "react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -88,7 +88,9 @@ export const AuthScreen = ({ mode }: AuthScreenProps) => {
         }
         await signIn.mutateAsync(values.data);
       }
-      navigate("/", { replace: true });
+      navigate(isSignUp ? "/complete-registration" : "/history", {
+        replace: true,
+      });
     } catch (submitError) {
       setError(
         submitError instanceof Error
@@ -201,6 +203,16 @@ export const AuthScreen = ({ mode }: AuthScreenProps) => {
               {isSignUp ? "Masuk" : "Daftar"}
             </Link>
           </p>
+          <Link
+            className={buttonVariants({
+              className: "w-full",
+              variant: "stroke",
+            })}
+            to="/offline-call"
+          >
+            <PhoneCallIcon data-icon="inline-start" />
+            Gunakan Panggilan Offline
+          </Link>
         </CardFooter>
       </Card>
     </MobilePage>

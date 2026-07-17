@@ -9,10 +9,20 @@ import {
   ACTIVE_REPORT_STATUSES,
   TERMINAL_REPORT_STATUSES,
 } from "../domain/entities";
+import { INTAKE_FINALIZED_MESSAGE } from "../domain/intake-policy";
+import {
+  isReporterTextSourceAllowed,
+  reporterMessageChannelForSource,
+  reporterMessageTypeForSource,
+} from "../domain/reporter-message-policy";
 import type {
+  AppendAcousticSignalInput,
   AppendReporterTextInput,
+  AssistantDelivery,
   AssistantReportUpdate,
   CreateReporterReportInput,
+  CriticalIntakeField,
+  IntakeDecision,
   ReporterAcknowledgementType,
   ReporterInteractionMode,
   ReporterReportDetail,
@@ -31,10 +41,34 @@ const ACTIVE_REPORT_STATUS_VALUES = [
 
 const toIsoString = (value: Date): string => value.toISOString();
 
+const CRITICAL_INTAKE_FIELDS = [
+  "INCIDENT",
+  "LOCATION",
+  "IMMEDIATE_DANGER",
+  "PEOPLE_AFFECTED",
+] as const satisfies readonly CriticalIntakeField[];
+
+const toCriticalIntakeFields = (value: unknown): CriticalIntakeField[] =>
+  Array.isArray(value)
+    ? value.filter((field): field is CriticalIntakeField =>
+        CRITICAL_INTAKE_FIELDS.some((candidate) => candidate === field)
+      )
+    : [];
+
 const reporterReportInclude = {
   acknowledgements: {
     orderBy: { createdAt: "asc" as const },
     select: { type: true },
+  },
+  acousticSignals: {
+    orderBy: { createdAt: "desc" as const },
+    select: {
+      code: true,
+      confidence: true,
+      createdAt: true,
+      id: true,
+    },
+    take: 10,
   },
   assignedOperator: {
     select: { id: true, name: true },
@@ -100,6 +134,12 @@ const toReporterDetail = (report: ReporterReportRow): ReporterReportDetail => {
 
   return {
     acknowledgements: report.acknowledgements.map(({ type }) => type),
+    acousticSignals: report.acousticSignals.map((signal) => ({
+      code: signal.code as ReporterReportDetail["acousticSignals"][number]["code"],
+      confidence: signal.confidence,
+      createdAt: toIsoString(signal.createdAt),
+      id: signal.id,
+    })),
     address: report.address,
     assignedOperator: report.assignedOperator,
     callSession: callSession
@@ -119,6 +159,12 @@ const toReporterDetail = (report: ReporterReportRow): ReporterReportDetail => {
     createdAt: toIsoString(report.createdAt),
     id: report.id,
     incidentType: report.incidentType,
+    intakeCompletedAt: report.intakeCompletedAt
+      ? toIsoString(report.intakeCompletedAt)
+      : null,
+    intakeCompletionReason: report.intakeCompletionReason,
+    intakeQuestionCount: report.intakeQuestionCount,
+    intakeStatus: report.intakeStatus,
     interactionMode: report.interactionMode,
     latestDispatch: latestDispatch
       ? {
@@ -136,6 +182,7 @@ const toReporterDetail = (report: ReporterReportRow): ReporterReportDetail => {
       ...message,
       createdAt: toIsoString(message.createdAt),
     })),
+    missingCriticalFields: toCriticalIntakeFields(report.missingCriticalFields),
     recommendation: report.recommendation,
     recordingStatus: recording?.status ?? null,
     responderPreference: report.responderPreference,
@@ -151,7 +198,7 @@ const channelForMode = (mode: ReporterInteractionMode): "VOICE" | "CHAT" =>
 
 const initialAssistantMessage = (mode: ReporterInteractionMode): string => {
   if (mode === "SILENT") {
-    return "Mikrofon aktif dan perangkat tetap hening. Jika aman, ketik keadaan darurat atau petunjuk lokasi.";
+    return "Laporan awal sudah diterima. Perangkat tetap hening dan SIAGA sedang menganalisis suara sekitar.";
   }
   return "Apa keadaan daruratnya?";
 };
@@ -167,9 +214,23 @@ const incidentTitle: Record<string, string> = {
 const getOwnedReportOrThrow = async (
   reportId: string,
   reporterId: string
-): Promise<{ interactionMode: ReporterInteractionMode | null }> => {
+): Promise<{
+  incidentType: ReporterReportDetail["incidentType"];
+  intakeStatus: ReporterReportDetail["intakeStatus"];
+  interactionMode: ReporterInteractionMode | null;
+  latitude: number | null;
+  longitude: number | null;
+  missingCriticalFields: CriticalIntakeField[];
+}> => {
   const report = await prisma.emergencyReport.findFirst({
-    select: { interactionMode: true },
+    select: {
+      incidentType: true,
+      intakeStatus: true,
+      interactionMode: true,
+      latitude: true,
+      longitude: true,
+      missingCriticalFields: true,
+    },
     where: {
       id: reportId,
       reporterId,
@@ -179,8 +240,39 @@ const getOwnedReportOrThrow = async (
   if (!report) {
     throw new Error("Laporan tidak ditemukan");
   }
-  return report;
+  return {
+    ...report,
+    missingCriticalFields: toCriticalIntakeFields(report.missingCriticalFields),
+  };
 };
+
+const getManualCompletionMissingFields = (report: {
+  incidentType: ReporterReportDetail["incidentType"];
+  latitude: number | null;
+  longitude: number | null;
+  missingCriticalFields: CriticalIntakeField[];
+}): CriticalIntakeField[] => {
+  if (report.missingCriticalFields.length > 0) {
+    return report.missingCriticalFields;
+  }
+  const missing: CriticalIntakeField[] = [
+    "IMMEDIATE_DANGER",
+    "PEOPLE_AFFECTED",
+  ];
+  if (!report.incidentType) {
+    missing.unshift("INCIDENT");
+  }
+  if (report.latitude === null || report.longitude === null) {
+    missing.push("LOCATION");
+  }
+  return missing;
+};
+
+const getAssistantReply = (
+  update: AssistantReportUpdate,
+  decision: IntakeDecision
+): string =>
+  decision.shouldFinalize ? INTAKE_FINALIZED_MESSAGE : update.reply;
 
 export class PrismaReporterReportRepository
   implements ReporterReportRepository
@@ -412,6 +504,15 @@ export class PrismaReporterReportRepository
       input.reportId,
       input.reporterId
     );
+    if (
+      !isReporterTextSourceAllowed(
+        report.interactionMode,
+        report.intakeStatus,
+        input.source
+      )
+    ) {
+      throw new Error("Sumber pesan tidak sesuai dengan mode laporan");
+    }
     const existing = await prisma.message.findFirst({
       select: { id: true },
       where: {
@@ -428,14 +529,20 @@ export class PrismaReporterReportRepository
         });
         await transaction.message.create({
           data: {
-            channel: channelForMode(report.interactionMode ?? "TEXT"),
+            channel: reporterMessageChannelForSource(
+              input.source,
+              report.interactionMode
+            ),
             content: input.content,
             idempotencyKey: input.idempotencyKey,
             reportId: input.reportId,
             senderType: MessageSenderType.REPORTER,
             senderUserId: input.reporterId,
             sequence: (latest?.sequence ?? 0) + 1,
-            type: "REPORTER_TEXT",
+            type: reporterMessageTypeForSource(
+              input.source,
+              report.intakeStatus
+            ),
           },
         });
       });
@@ -450,13 +557,16 @@ export class PrismaReporterReportRepository
 
   async applyAssistantUpdate(
     reportId: string,
-    update: AssistantReportUpdate
+    update: AssistantReportUpdate,
+    decision: IntakeDecision,
+    delivery: AssistantDelivery
   ): Promise<ReporterReportDetail> {
     const reporterId = await prisma.$transaction(async (transaction) => {
       const report = await transaction.emergencyReport.findUniqueOrThrow({
         select: {
-          activeChannel: true,
+          intakeStatus: true,
           reporterId: true,
+          status: true,
         },
         where: { id: reportId },
       });
@@ -465,22 +575,31 @@ export class PrismaReporterReportRepository
         select: { id: true, sequence: true },
         where: { reportId },
       });
-      await transaction.message.create({
-        data: {
-          channel: report.activeChannel ?? "CHAT",
-          content: update.reply,
-          reportId,
-          senderType: MessageSenderType.AI_AGENT,
-          sequence: (latest?.sequence ?? 0) + 1,
-          type: "AI_TEXT",
-        },
-      });
+      if (delivery !== "SILENT") {
+        await transaction.message.create({
+          data: {
+            channel: delivery,
+            content: getAssistantReply(update, decision),
+            reportId,
+            senderType: MessageSenderType.AI_AGENT,
+            sequence: (latest?.sequence ?? 0) + 1,
+            type: "AI_TEXT",
+          },
+        });
+      }
+      if (report.intakeStatus === "FINALIZED") {
+        await transaction.emergencyReport.update({
+          data: { version: { increment: 1 } },
+          where: { id: reportId },
+        });
+        return report.reporterId;
+      }
       await transaction.aIAnalysisSnapshot.create({
         data: {
           category: update.category,
           extractedData: update.extractedData,
           incidentType: update.incidentType,
-          modelVersion: "openrouter",
+          modelVersion: "gemini",
           recommendation: update.recommendation,
           reportId,
           summary: update.summary,
@@ -492,13 +611,35 @@ export class PrismaReporterReportRepository
           category: update.category,
           extractedData: update.extractedData,
           incidentType: update.incidentType,
+          intakeCompletedAt: decision.shouldFinalize ? new Date() : undefined,
+          intakeCompletionReason: decision.shouldFinalize
+            ? decision.reason
+            : undefined,
+          intakeQuestionCount:
+            report.intakeStatus === "COLLECTING" ? { increment: 1 } : undefined,
+          intakeStatus: decision.shouldFinalize ? "FINALIZED" : undefined,
+          missingCriticalFields: decision.missingCriticalFields,
           recommendation: update.recommendation,
+          status: decision.shouldFinalize
+            ? ReportStatus.READY_FOR_REVIEW
+            : undefined,
           summary: update.summary,
           title: update.title,
           version: { increment: 1 },
         },
         where: { id: reportId },
       });
+      if (decision.shouldFinalize) {
+        await transaction.reportStatusEvent.create({
+          data: {
+            actorType: MessageSenderType.AI_AGENT,
+            fromStatus: report.status,
+            note: `Intake AI selesai: ${decision.reason ?? "informasi cukup"}`,
+            reportId,
+            toStatus: ReportStatus.READY_FOR_REVIEW,
+          },
+        });
+      }
       return report.reporterId;
     });
 
@@ -531,53 +672,11 @@ export class PrismaReporterReportRepository
     return toReporterDetail(report);
   }
 
-  async switchMode(
-    reportId: string,
-    reporterId: string,
-    mode: ReporterInteractionMode
-  ): Promise<ReporterReportDetail> {
-    const ownedReport = await getOwnedReportOrThrow(reportId, reporterId);
-    await prisma.$transaction(async (transaction) => {
-      const session = await transaction.callSession.findFirstOrThrow({
-        orderBy: { startedAt: "desc" },
-        select: { id: true },
-        where: { reportId },
-      });
-      await transaction.emergencyReport.update({
-        data: {
-          activeChannel: channelForMode(mode),
-          interactionMode: mode,
-          version: { increment: 1 },
-        },
-        where: { id: reportId },
-      });
-      await transaction.callSession.update({
-        data: { activeInteractionMode: mode },
-        where: { id: session.id },
-      });
-      await transaction.modeEvent.create({
-        data: {
-          actorId: reporterId,
-          actorType: MessageSenderType.REPORTER,
-          callSessionId: session.id,
-          fromMode: ownedReport.interactionMode,
-          reportId,
-          toMode: mode,
-        },
-      });
-    });
-    const report = await findReporterReport(reportId, reporterId);
-    if (!report) {
-      throw new Error("Laporan tidak dapat dimuat setelah mode diganti");
-    }
-    return toReporterDetail(report);
-  }
-
   async endSession(
     reportId: string,
     reporterId: string
   ): Promise<ReporterReportDetail> {
-    await getOwnedReportOrThrow(reportId, reporterId);
+    const ownedReport = await getOwnedReportOrThrow(reportId, reporterId);
     const session = await prisma.callSession.findFirst({
       orderBy: { startedAt: "desc" },
       select: { id: true, startedAt: true, status: true },
@@ -608,11 +707,121 @@ export class PrismaReporterReportRepository
         },
       });
     }
+    if (ownedReport.intakeStatus === "COLLECTING") {
+      await prisma.$transaction(async (transaction) => {
+        const current = await transaction.emergencyReport.findUniqueOrThrow({
+          select: { status: true },
+          where: { id: reportId },
+        });
+        const completedAt = new Date();
+        await transaction.emergencyReport.update({
+          data: {
+            intakeCompletedAt: completedAt,
+            intakeCompletionReason: "USER_ENDED",
+            intakeStatus: "FINALIZED",
+            missingCriticalFields:
+              getManualCompletionMissingFields(ownedReport),
+            status: ReportStatus.READY_FOR_REVIEW,
+            version: { increment: 1 },
+          },
+          where: { id: reportId },
+        });
+        await transaction.reportStatusEvent.create({
+          data: {
+            actorId: reporterId,
+            actorType: MessageSenderType.REPORTER,
+            fromStatus: current.status,
+            note: "Pelapor mengakhiri intake; laporan parsial diteruskan",
+            reportId,
+            toStatus: ReportStatus.READY_FOR_REVIEW,
+          },
+        });
+      });
+    }
     const report = await findReporterReport(reportId, reporterId);
     if (!report) {
       throw new Error("Laporan tidak dapat dimuat setelah sesi berakhir");
     }
     return toReporterDetail(report);
+  }
+
+  async appendAcousticSignal(
+    input: AppendAcousticSignalInput
+  ): Promise<ReporterReportDetail> {
+    const ownedReport = await getOwnedReportOrThrow(
+      input.reportId,
+      input.reporterId
+    );
+    if (ownedReport.interactionMode !== "SILENT") {
+      throw new Error("Sinyal akustik hanya tersedia dalam mode sunyi");
+    }
+    const session = await prisma.callSession.findFirstOrThrow({
+      orderBy: { startedAt: "desc" },
+      select: { id: true },
+      where: { reportId: input.reportId },
+    });
+    const shouldFinalize =
+      ownedReport.intakeStatus === "COLLECTING" &&
+      input.confidence >= 0.9 &&
+      (input.code === "GUNSHOT" || input.code === "EXPLOSION");
+
+    await prisma.$transaction(async (transaction) => {
+      await transaction.acousticSignal.create({
+        data: {
+          callSessionId: session.id,
+          code: input.code,
+          confidence: input.confidence,
+          endedAt: input.endedAt,
+          modelId: input.modelId,
+          modelVersion: input.modelVersion,
+          reportId: input.reportId,
+          startedAt: input.startedAt,
+        },
+      });
+      if (!shouldFinalize) {
+        return;
+      }
+      const report = await transaction.emergencyReport.findUniqueOrThrow({
+        select: { status: true },
+        where: { id: input.reportId },
+      });
+      await transaction.emergencyReport.update({
+        data: {
+          category: "CRITICAL",
+          intakeCompletedAt: new Date(),
+          intakeCompletionReason: "ACOUSTIC_TRIGGER",
+          intakeStatus: "FINALIZED",
+          missingCriticalFields: [
+            "INCIDENT",
+            "IMMEDIATE_DANGER",
+            "PEOPLE_AFFECTED",
+            ...(ownedReport.latitude === null || ownedReport.longitude === null
+              ? (["LOCATION"] as const)
+              : []),
+          ],
+          status: ReportStatus.READY_FOR_REVIEW,
+          summary: `Mode sunyi mendeteksi ${input.code} dengan confidence ${Math.round(input.confidence * 100)}%.`,
+          title: "Sinyal bahaya terdeteksi",
+          version: { increment: 1 },
+        },
+        where: { id: input.reportId },
+      });
+      await transaction.reportStatusEvent.create({
+        data: {
+          actorType: MessageSenderType.SYSTEM,
+          fromStatus: report.status,
+          note: `Mode sunyi mendeteksi ${input.code}`,
+          reportId: input.reportId,
+          toStatus: ReportStatus.READY_FOR_REVIEW,
+        },
+      });
+    });
+
+    const updated = await findReporterReport(input.reportId, input.reporterId);
+    if (!updated) {
+      throw new Error("Laporan tidak dapat dimuat setelah analisis suara");
+    }
+    return toReporterDetail(updated);
   }
 
   async requestCancellation(

@@ -25,6 +25,7 @@
     "dotenv": "catalog:",
     "isbot": "^5.1.44",
     "lucide-react": "catalog:",
+    "livekit-client": "^2.20.1",
     "maplibre-gl": "^5.24.0",
     "next-themes": "catalog:",
     "react": "^19.2.7",

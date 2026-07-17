@@ -1,6 +1,7 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 
 import type { Context } from "./context";
+import { hasCompletedReporterProfile } from "./modules/profile/domain/profile-completion";
 
 export const t = initTRPC.context<Context>().create();
 
@@ -47,3 +48,18 @@ export const reporterProcedure = protectedProcedure.use(({ ctx, next }) => {
   }
   return next({ ctx });
 });
+
+export const completedReporterProcedure = reporterProcedure.use(
+  async ({ ctx, next }) => {
+    const isProfileComplete = await hasCompletedReporterProfile(
+      ctx.session.user.id
+    );
+    if (!isProfileComplete) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "Lengkapi profil darurat sebelum menggunakan layanan SOS.",
+      });
+    }
+    return next({ ctx });
+  }
+);

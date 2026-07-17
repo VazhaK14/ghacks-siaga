@@ -1,0 +1,19 @@
+CREATE TYPE "IntakeStatus" AS ENUM ('COLLECTING', 'FINALIZING', 'FINALIZED');
+
+CREATE TYPE "IntakeCompletionReason" AS ENUM (
+  'ENOUGH_INFORMATION',
+  'URGENT_PARTIAL',
+  'QUESTION_LIMIT',
+  'USER_ENDED',
+  'TECHNICAL_FAILURE',
+  'ACOUSTIC_TRIGGER'
+);
+
+ALTER TYPE "MessageType" ADD VALUE 'SUPPLEMENTAL_TEXT';
+
+ALTER TABLE "emergency_report"
+ADD COLUMN "intakeStatus" "IntakeStatus" NOT NULL DEFAULT 'COLLECTING',
+ADD COLUMN "intakeCompletionReason" "IntakeCompletionReason",
+ADD COLUMN "intakeCompletedAt" TIMESTAMP(3),
+ADD COLUMN "intakeQuestionCount" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN "missingCriticalFields" JSONB;

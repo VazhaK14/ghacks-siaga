@@ -62,8 +62,12 @@ describe("PrismaReportRepository", () => {
   });
 
   test("returns operational detail and related data", async () => {
-    const firstPage = await repository.listActive({ limit: 1 });
-    const [firstReport] = firstPage.items;
+    const firstReport = await prisma.emergencyReport.findFirst({
+      where: {
+        isDemo: true,
+        status: { notIn: ["RESOLVED", "CLOSED", "CANCELLED"] },
+      },
+    });
 
     expect(firstReport).toBeDefined();
     if (!firstReport) {
@@ -240,12 +244,9 @@ describe("PrismaReportRepository", () => {
   });
 
   test("returns read-only archived detail", async () => {
-    const page = await repository.listArchived({
-      page: 1,
-      pageSize: 10,
-      status: "RESOLVED",
+    const report = await prisma.emergencyReport.findFirst({
+      where: { isDemo: true, status: "RESOLVED" },
     });
-    const [report] = page.items;
 
     expect(report).toBeDefined();
     if (!report) {

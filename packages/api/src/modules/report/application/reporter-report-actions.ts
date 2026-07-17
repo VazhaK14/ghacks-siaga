@@ -1,9 +1,11 @@
+import { decideIntake } from "../domain/intake-policy";
+import { assistantDeliveryForSource } from "../domain/reporter-message-policy";
 import type {
+  AppendAcousticSignalInput,
   AppendReporterTextInput,
   CaseAssistant,
   CreateReporterReportInput,
   ReporterAcknowledgementType,
-  ReporterInteractionMode,
   ReporterReportDetail,
   ReporterReportListItem,
   ReporterReportRepository,
@@ -63,7 +65,13 @@ export class AppendReporterText {
     if (!update) {
       return report;
     }
-    return this.repository.applyAssistantUpdate(report.id, update);
+    const decision = decideIntake(report, update);
+    return this.repository.applyAssistantUpdate(
+      report.id,
+      update,
+      decision,
+      assistantDeliveryForSource(input.source)
+    );
   }
 }
 
@@ -83,19 +91,15 @@ export class UpdateReporterLocation {
   }
 }
 
-export class SwitchReporterMode {
+export class AppendReporterAcousticSignal {
   private readonly repository: ReporterReportRepository;
 
   constructor(repository: ReporterReportRepository) {
     this.repository = repository;
   }
 
-  execute(
-    reportId: string,
-    reporterId: string,
-    mode: ReporterInteractionMode
-  ): Promise<ReporterReportDetail> {
-    return this.repository.switchMode(reportId, reporterId, mode);
+  execute(input: AppendAcousticSignalInput): Promise<ReporterReportDetail> {
+    return this.repository.appendAcousticSignal(input);
   }
 }
 

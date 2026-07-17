@@ -1,0 +1,67 @@
+enum OfflineCallStatus {
+  WAITING
+  ACTIVE
+  ENDED
+  CANCELLED
+  MISSED
+  FAILED
+}
+
+enum OfflineCallSpeaker {
+  CALLER
+  OPERATOR
+}
+
+model OfflineEmergencyCall {
+  id String @id @default(cuid())
+
+  accessTokenHash String            @unique
+  idempotencyKey  String
+  requestIpHash   String
+  roomName        String            @unique
+  status          OfflineCallStatus @default(WAITING)
+
+  latitude         Float?
+  longitude        Float?
+  locationAccuracy Float?
+
+  assignedOperatorId String?
+  assignedOperator   User?   @relation("OfflineCallOperator", fields: [assignedOperatorId], references: [id])
+
+  isDemo          Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  acceptedAt      DateTime?
+  endedAt         DateTime?
+  durationSeconds Int?
+
+  transcripts OfflineCallTranscript[]
+
+  @@unique([requestIpHash, idempotencyKey])
+  @@index([status, createdAt])
+  @@index([assignedOperatorId])
+  @@map("offline_emergency_call")
+}
+
+model OfflineCallTranscript {
+  id String @id @default(cuid())
+
+  callId String
+  call   OfflineEmergencyCall @relation(fields: [callId], references: [id], onDelete: Cascade)
+
+  speaker        OfflineCallSpeaker
+  content        String
+  confidence     Float?
+  sequence       Int
+  idempotencyKey String
+
+  authorId String?
+  author   User?   @relation("OfflineTranscriptAuthor", fields: [authorId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([callId, idempotencyKey])
+  @@index([callId, sequence])
+  @@index([authorId])
+  @@map("offline_call_transcript")
+}

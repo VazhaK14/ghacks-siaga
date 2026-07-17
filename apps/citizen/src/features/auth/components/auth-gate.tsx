@@ -4,11 +4,14 @@ import type { PropsWithChildren } from "react";
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router";
 
+import { useReporterProfileQuery } from "@/features/profile/api";
 import { authClient } from "@/lib/auth-client";
 
 import { useSignOutMutation } from "../api";
 
 const AUTH_PATHS = new Set(["/sign-in", "/sign-up"]);
+const ONBOARDING_PATH = "/complete-registration";
+const PUBLIC_PATHS = new Set(["/offline-call"]);
 
 export const AuthGate = ({ children }: PropsWithChildren) => {
   const location = useLocation();
@@ -16,28 +19,59 @@ export const AuthGate = ({ children }: PropsWithChildren) => {
   const session = authClient.useSession();
   const signOut = useSignOutMutation();
   const isAuthPath = AUTH_PATHS.has(location.pathname);
+  const isOnboardingPath = location.pathname === ONBOARDING_PATH;
+  const isPublicPath = PUBLIC_PATHS.has(location.pathname);
   const role = session.data?.user.role;
   const isReporter = role === "REPORTER";
-  const shouldOpenSignIn = !(session.isPending || session.data || isAuthPath);
-  const shouldOpenApp =
-    !session.isPending && Boolean(session.data) && isAuthPath && isReporter;
+  const shouldCheckProfile = Boolean(
+    session.data && isReporter && !isPublicPath
+  );
+  const profileQuery = useReporterProfileQuery(shouldCheckProfile);
+  const isProfileComplete = profileQuery.data?.isComplete === true;
+  const shouldOpenSignIn = Boolean(
+    !(session.isPending || session.data || isAuthPath || isPublicPath)
+  );
+  const shouldOpenOnboarding = Boolean(
+    shouldCheckProfile &&
+      !profileQuery.isPending &&
+      !isProfileComplete &&
+      !isOnboardingPath
+  );
+  const shouldOpenApp = Boolean(
+    shouldCheckProfile &&
+      !profileQuery.isPending &&
+      isProfileComplete &&
+      (isAuthPath || isOnboardingPath)
+  );
 
   useEffect(() => {
     if (shouldOpenSignIn) {
       navigate("/sign-in", { replace: true });
       return;
     }
-    if (shouldOpenApp) {
-      navigate("/", { replace: true });
+    if (shouldOpenOnboarding) {
+      navigate(ONBOARDING_PATH, { replace: true });
+      return;
     }
-  }, [navigate, shouldOpenApp, shouldOpenSignIn]);
+    if (shouldOpenApp) {
+      navigate("/history", { replace: true });
+    }
+  }, [navigate, shouldOpenApp, shouldOpenOnboarding, shouldOpenSignIn]);
 
   const handleSignOut = async () => {
     await signOut.mutateAsync();
     navigate("/sign-in", { replace: true });
   };
 
-  if (session.isPending || shouldOpenSignIn || shouldOpenApp) {
+  const isChecking = Boolean(
+    session.isPending ||
+      shouldOpenSignIn ||
+      shouldOpenOnboarding ||
+      shouldOpenApp ||
+      (shouldCheckProfile && profileQuery.isPending)
+  );
+
+  if (isChecking) {
     return (
       <main className="flex min-h-dvh items-center justify-center p-6">
         <div
@@ -49,7 +83,7 @@ export const AuthGate = ({ children }: PropsWithChildren) => {
     );
   }
 
-  if (session.data && !isReporter) {
+  if (session.data && !isReporter && !isPublicPath) {
     return (
       <main className="flex min-h-dvh items-center justify-center p-6">
         <section className="citizen-glass-surface flex max-w-sm flex-col items-center gap-4 p-6 text-center">

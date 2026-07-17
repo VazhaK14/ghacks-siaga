@@ -39,21 +39,19 @@ export const env = createEnv({
       .transform((v) => v.split(",").map((s) => s.trim()))
       .pipe(z.array(z.url()).min(1)),
     DATABASE_URL: z.string().min(1),
+    ELEVENLABS_API_KEY: z.string().min(1).optional(),
+    ELEVENLABS_TTS_MODEL: z.string().min(1).default("eleven_flash_v2_5"),
+    ELEVENLABS_VOICE_ID: z.string().min(1).default("gpzZjtWbZNetDrq8CXKD"),
+    GEMINI_API_KEY: z.string().min(1).optional(),
+    GEMINI_FALLBACK_MODEL: z.string().min(1).default("gemini-3.1-flash-lite"),
+    GEMINI_MODEL: z.string().min(1).default("gemini-3.5-flash"),
     LIVEKIT_API_KEY: z.string().min(1).optional(),
     LIVEKIT_API_SECRET: z.string().min(1).optional(),
     LIVEKIT_URL: z.url().optional(),
     NODE_ENV: z
       .enum(["development", "production", "test"])
       .default("development"),
-    OPENROUTER_API_KEY: z.string().min(1).optional(),
-    OPENROUTER_FALLBACK_MODEL: z
-      .string()
-      .min(1)
-      .default("google/gemma-4-26b-a4b-it:free"),
-    OPENROUTER_MODEL: z
-      .string()
-      .min(1)
-      .default("qwen/qwen3-next-80b-a3b-instruct:free"),
+    SPEECHIFY_API_KEY: z.string().min(1).optional(),
     UPSTASH_REDIS_REST_TOKEN: z.string().min(1).optional(),
     UPSTASH_REDIS_REST_URL: z.url().optional(),
     VAPID_PRIVATE_KEY: z.string().min(1).optional(),

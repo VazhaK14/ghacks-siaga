@@ -241,6 +241,17 @@ export interface ReportDetail {
   handlingMode: "AI" | "HUMAN";
   id: string;
   incidentType: IncidentType | null;
+  intakeCompletedAt: string | null;
+  intakeCompletionReason:
+    | "ENOUGH_INFORMATION"
+    | "URGENT_PARTIAL"
+    | "QUESTION_LIMIT"
+    | "USER_ENDED"
+    | "TECHNICAL_FAILURE"
+    | "ACOUSTIC_TRIGGER"
+    | null;
+  intakeQuestionCount: number;
+  intakeStatus: "COLLECTING" | "FINALIZING" | "FINALIZED";
   interactionMode: "VOICE" | "TEXT" | "SILENT" | null;
   latestAnalysis: {
     category: ReportCategory;
@@ -264,8 +275,10 @@ export interface ReportDetail {
       | "OPERATOR_TEXT"
       | "AI_TEXT"
       | "TRANSCRIPT_FINAL"
+      | "SUPPLEMENTAL_TEXT"
       | "SYSTEM";
   }[];
+  missingCriticalFields: string[];
   recommendation: string | null;
   recording: {
     id: string;

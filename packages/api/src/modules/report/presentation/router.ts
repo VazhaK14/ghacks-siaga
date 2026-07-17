@@ -1,6 +1,10 @@
 import { TRPCError } from "@trpc/server";
 
-import { operatorProcedure, reporterProcedure, router } from "../../../index";
+import {
+  completedReporterProcedure,
+  operatorProcedure,
+  router,
+} from "../../../index";
 import { ClaimAndTakeoverReport } from "../application/claim-and-takeover-report";
 import { GetArchivedReportDetail } from "../application/get-archived-report-detail";
 import { GetReportDetail } from "../application/get-report-detail";
@@ -11,24 +15,31 @@ import { ListArchivedReports } from "../application/list-archived-reports";
 import {
   AcknowledgeReport,
   ActivateReporterSession,
+  AppendReporterAcousticSignal,
   AppendReporterText,
   CreateReporterReport,
   EndReporterSession,
   GetReporterReport,
   ListReporterReports,
   RequestReporterCancellation,
-  SwitchReporterMode,
   UpdateReporterLocation,
 } from "../application/reporter-report-actions";
+import {
+  GetRealtimeTranscriptionAccess,
+  SynthesizeReporterSpeech,
+} from "../application/reporter-voice-actions";
+import { ReviewAcousticSignal } from "../application/review-acoustic-signal";
 import { UpdateReportDetail } from "../application/update-report-detail";
 import { ReportUpdateApplicationError } from "../domain/entities";
+import { ElevenLabsVoiceAiGateway } from "../infrastructure/elevenlabs-voice-gateway";
+import { GeminiCaseAssistant } from "../infrastructure/gemini-case-assistant";
 import { LiveKitReporterTokenGateway } from "../infrastructure/livekit-token-gateway";
-import { OpenRouterCaseAssistant } from "../infrastructure/openrouter-case-assistant";
 import { PrismaReportRepository } from "../infrastructure/prisma-report-repository";
 import { PrismaReporterReportRepository } from "../infrastructure/prisma-reporter-report-repository";
 import {
   acknowledgeReporterInputSchema,
   activeReportPageSchema,
+  appendAcousticSignalInputSchema,
   appendReporterTextInputSchema,
   archivedReportDetailSchema,
   archivedReportPageSchema,
@@ -36,6 +47,7 @@ import {
   listActiveReportsInputSchema,
   listArchivedReportsInputSchema,
   liveKitConnectionSchema,
+  realtimeTranscriptionAccessSchema,
   reportDetailSchema,
   reporterReportDetailSchema,
   reporterReportIdInputSchema,
@@ -43,7 +55,9 @@ import {
   reportIdInputSchema,
   reportMapPointsSchema,
   requestReporterCancellationInputSchema,
-  switchReporterModeInputSchema,
+  reviewAcousticSignalInputSchema,
+  synthesizedSpeechSchema,
+  synthesizeSpeechInputSchema,
   updateReportDetailInputSchema,
   updateReporterLocationInputSchema,
 } from "./dto";
@@ -56,8 +70,9 @@ const getArchivedReportDetail = new GetArchivedReportDetail(reportRepository);
 const listActiveMapPoints = new ListActiveMapPoints(reportRepository);
 const listArchivedReports = new ListArchivedReports(reportRepository);
 const updateReportDetail = new UpdateReportDetail(reportRepository);
+const reviewAcousticSignal = new ReviewAcousticSignal(reportRepository);
 const reporterReportRepository = new PrismaReporterReportRepository();
-const caseAssistant = new OpenRouterCaseAssistant();
+const caseAssistant = new GeminiCaseAssistant();
 const createReporterReport = new CreateReporterReport(reporterReportRepository);
 const getReporterReport = new GetReporterReport(reporterReportRepository);
 const listReporterReports = new ListReporterReports(reporterReportRepository);
@@ -68,7 +83,9 @@ const appendReporterText = new AppendReporterText(
 const updateReporterLocation = new UpdateReporterLocation(
   reporterReportRepository
 );
-const switchReporterMode = new SwitchReporterMode(reporterReportRepository);
+const appendReporterAcousticSignal = new AppendReporterAcousticSignal(
+  reporterReportRepository
+);
 const endReporterSession = new EndReporterSession(reporterReportRepository);
 const requestReporterCancellation = new RequestReporterCancellation(
   reporterReportRepository
@@ -83,6 +100,11 @@ const getReporterLiveKitConnection = new GetReporterLiveKitConnection(
   reporterReportRepository,
   liveKitTokenGateway
 );
+const voiceAiGateway = new ElevenLabsVoiceAiGateway();
+const getRealtimeTranscriptionAccess = new GetRealtimeTranscriptionAccess(
+  voiceAiGateway
+);
+const synthesizeReporterSpeech = new SynthesizeReporterSpeech(voiceAiGateway);
 
 const toUpdateTrpcError = (error: unknown): never => {
   if (error instanceof ReportUpdateApplicationError) {
@@ -95,7 +117,7 @@ const toUpdateTrpcError = (error: unknown): never => {
 };
 
 export const reportRouter = router({
-  acknowledge: reporterProcedure
+  acknowledge: completedReporterProcedure
     .input(acknowledgeReporterInputSchema)
     .output(reporterReportDetailSchema)
     .mutation(async ({ ctx, input }) => {
@@ -111,7 +133,7 @@ export const reportRouter = router({
       });
       return report;
     }),
-  activateSession: reporterProcedure
+  activateSession: completedReporterProcedure
     .input(reporterReportIdInputSchema)
     .output(reporterReportDetailSchema)
     .mutation(async ({ ctx, input }) => {
@@ -126,7 +148,24 @@ export const reportRouter = router({
       });
       return report;
     }),
-  appendReporterText: reporterProcedure
+  appendAcousticSignal: completedReporterProcedure
+    .input(appendAcousticSignalInputSchema)
+    .output(reporterReportDetailSchema)
+    .mutation(async ({ ctx, input }) => {
+      const report = await appendReporterAcousticSignal.execute({
+        ...input,
+        endedAt: new Date(input.endedAt),
+        reporterId: ctx.session.user.id,
+        startedAt: new Date(input.startedAt),
+      });
+      await publishReportLiveEvent({
+        reportId: report.id,
+        type: "report.updated",
+        updatedAt: report.updatedAt,
+      });
+      return report;
+    }),
+  appendReporterText: completedReporterProcedure
     .input(appendReporterTextInputSchema)
     .output(reporterReportDetailSchema)
     .mutation(async ({ ctx, input }) => {
@@ -163,7 +202,7 @@ export const reportRouter = router({
         return toUpdateTrpcError(error);
       }
     }),
-  create: reporterProcedure
+  create: completedReporterProcedure
     .input(createReporterReportInputSchema)
     .output(reporterReportDetailSchema)
     .mutation(async ({ ctx, input }) => {
@@ -178,7 +217,7 @@ export const reportRouter = router({
       });
       return report;
     }),
-  endSession: reporterProcedure
+  endSession: completedReporterProcedure
     .input(reporterReportIdInputSchema)
     .output(reporterReportDetailSchema)
     .mutation(async ({ ctx, input }) => {
@@ -223,13 +262,13 @@ export const reportRouter = router({
 
       return report;
     }),
-  getLiveKitToken: reporterProcedure
+  getLiveKitToken: completedReporterProcedure
     .input(reporterReportIdInputSchema)
     .output(liveKitConnectionSchema)
     .mutation(({ ctx, input }) =>
       getReporterLiveKitConnection.execute(input.reportId, ctx.session.user.id)
     ),
-  getMine: reporterProcedure
+  getMine: completedReporterProcedure
     .input(reporterReportIdInputSchema)
     .output(reporterReportDetailSchema)
     .query(async ({ ctx, input }) => {
@@ -245,6 +284,9 @@ export const reportRouter = router({
       }
       return report;
     }),
+  getRealtimeTranscriptionToken: completedReporterProcedure
+    .output(realtimeTranscriptionAccessSchema)
+    .mutation(() => getRealtimeTranscriptionAccess.execute()),
   listActive: operatorProcedure
     .input(listActiveReportsInputSchema)
     .output(activeReportPageSchema)
@@ -256,10 +298,10 @@ export const reportRouter = router({
     .input(listArchivedReportsInputSchema)
     .output(archivedReportPageSchema)
     .query(({ input }) => listArchivedReports.execute(input)),
-  listMine: reporterProcedure
+  listMine: completedReporterProcedure
     .output(reporterReportListSchema)
     .query(({ ctx }) => listReporterReports.execute(ctx.session.user.id)),
-  requestCancellation: reporterProcedure
+  requestCancellation: completedReporterProcedure
     .input(requestReporterCancellationInputSchema)
     .output(reporterReportDetailSchema)
     .mutation(async ({ ctx, input }) => {
@@ -275,22 +317,26 @@ export const reportRouter = router({
       });
       return report;
     }),
-  switchMode: reporterProcedure
-    .input(switchReporterModeInputSchema)
-    .output(reporterReportDetailSchema)
-    .mutation(async ({ ctx, input }) => {
-      const report = await switchReporterMode.execute(
+  reviewAcousticSignal: operatorProcedure
+    .input(reviewAcousticSignalInputSchema)
+    .output(reportDetailSchema)
+    .mutation(async ({ input }) => {
+      const detail = await reviewAcousticSignal.execute(
         input.reportId,
-        ctx.session.user.id,
-        input.interactionMode
+        input.signalId,
+        input.status
       );
       await publishReportLiveEvent({
-        reportId: report.id,
+        reportId: detail.id,
         type: "report.updated",
-        updatedAt: report.updatedAt,
+        updatedAt: detail.updatedAt,
       });
-      return report;
+      return detail;
     }),
+  synthesizeSpeech: completedReporterProcedure
+    .input(synthesizeSpeechInputSchema)
+    .output(synthesizedSpeechSchema)
+    .mutation(({ input }) => synthesizeReporterSpeech.execute(input.text)),
   updateDetail: operatorProcedure
     .input(updateReportDetailInputSchema)
     .output(reportDetailSchema)
@@ -315,7 +361,7 @@ export const reportRouter = router({
         return toUpdateTrpcError(error);
       }
     }),
-  updateLocation: reporterProcedure
+  updateLocation: completedReporterProcedure
     .input(updateReporterLocationInputSchema)
     .output(reporterReportDetailSchema)
     .mutation(async ({ ctx, input }) => {
