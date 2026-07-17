@@ -1,5 +1,6 @@
 import { trpcServer } from "@hono/trpc-server";
 import { createContext } from "@siaga-app/api/context";
+import { subscribeToOfflineCallLiveEvents } from "@siaga-app/api/modules/offline-call/live-events";
 import { subscribeToReportLiveEvents } from "@siaga-app/api/modules/report/presentation/live-events";
 import { appRouter } from "@siaga-app/api/routers/index";
 import { auth } from "@siaga-app/auth";
@@ -118,6 +119,54 @@ app.get("/sse/reports/live", async (c) => {
       await sendHeartbeat();
     } finally {
       await unsubscribe();
+    }
+  });
+});
+
+app.get("/sse/offline-calls/live", async (c) => {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  if (!session) {
+    return c.json({ message: "Authentication required" }, 401);
+  }
+  if (session.user.role !== "OPERATOR") {
+    return c.json({ message: "Operator access required" }, 403);
+  }
+
+  c.header("Cache-Control", "no-cache, no-transform");
+  c.header("X-Accel-Buffering", "no");
+
+  return streamSSE(c, async (stream) => {
+    let writeQueue = Promise.resolve();
+    const unsubscribe = subscribeToOfflineCallLiveEvents((event) => {
+      writeQueue = writeQueue
+        .then(() =>
+          stream.writeSSE({
+            data: JSON.stringify(event),
+            event: event.type,
+            id: `${event.occurredAt}:${event.callId}`,
+          })
+        )
+        .catch(() => undefined);
+    });
+    try {
+      await stream.writeSSE({
+        data: JSON.stringify({ connectedAt: new Date().toISOString() }),
+        event: "connected",
+      });
+      const keepAlive = async (): Promise<void> => {
+        await stream.sleep(SSE_HEARTBEAT_INTERVAL_MS);
+        if (stream.aborted) {
+          return;
+        }
+        await stream.writeSSE({
+          data: JSON.stringify({ timestamp: new Date().toISOString() }),
+          event: "heartbeat",
+        });
+        await keepAlive();
+      };
+      await keepAlive();
+    } finally {
+      unsubscribe();
     }
   });
 });

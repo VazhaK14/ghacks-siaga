@@ -1,0 +1,46 @@
+enum OfflineCallStatus {
+  WAITING
+  ACTIVE
+  ENDED
+  CANCELLED
+  MISSED
+  FAILED
+}
+
+model OfflineEmergencyCall {
+  id String @id @default(cuid())
+
+  accessTokenHash String            @unique
+  idempotencyKey  String
+  requestIpHash   String
+  roomName        String            @unique
+  status          OfflineCallStatus @default(WAITING)
+
+  latitude         Float?
+  longitude        Float?
+  locationAccuracy Float?
+
+  assignedOperatorId String?
+  assignedOperator   User?   @relation("OfflineCallOperator", fields: [assignedOperatorId], references: [id])
+
+  isDemo          Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  acceptedAt      DateTime?
+  endedAt         DateTime?
+  durationSeconds Int?
+
+  summary           String?
+  keyPoints         Json?
+  callerCondition   String?
+  followUp          String?
+  confidencePercent Int?
+  finalizedAt       DateTime?
+
+  convertedReport EmergencyReport? @relation("OfflineCallReport")
+
+  @@unique([requestIpHash, idempotencyKey])
+  @@index([status, createdAt])
+  @@index([assignedOperatorId])
+  @@map("offline_emergency_call")
+}

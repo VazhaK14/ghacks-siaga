@@ -92,19 +92,29 @@ export const SosScreen = () => {
         Deteksi ulang lokasi
       </Button>
 
-      <section className="flex flex-col items-center gap-3 text-center">
-        <h1 className="text-h3">Tekan untuk SOS</h1>
+      <section className="flex flex-1 flex-col items-center justify-center gap-3 py-4 text-center">
+        <h1 className="text-h3">Tekan untuk meminta bantuan</h1>
         <p className="text-muted-foreground text-sm">
           Setelah ini kamu dapat memilih suara, teks, atau mode senyap.
         </p>
-        <button
-          aria-label="Aktifkan SOS"
-          className="citizen-sos-button my-7 flex size-48 items-center justify-center rounded-full border-[12px] border-primary/20 bg-primary font-extrabold text-5xl text-primary-foreground transition-transform active:scale-95"
-          onClick={handleSos}
-          type="button"
+        <div className="relative my-10 flex size-60 items-center justify-center">
+          <span className="citizen-sos-pulse-ring absolute size-56 rounded-full bg-primary/10" />
+          <button
+            aria-describedby="sos-button-hint"
+            aria-label="Aktifkan SOS"
+            className="citizen-sos-button citizen-sos-heartbeat relative flex size-44 items-center justify-center rounded-full border-4 border-primary/15 bg-primary font-extrabold text-5xl text-primary-foreground transition-transform active:scale-95"
+            onClick={handleSos}
+            type="button"
+          >
+            <span className="citizen-sos-label">SOS</span>
+          </button>
+        </div>
+        <p
+          className="font-medium text-primary-300 text-xs tracking-wide"
+          id="sos-button-hint"
         >
-          SOS
-        </button>
+          SENTUH TOMBOL UNTUK MEMULAI
+        </p>
       </section>
 
       <fieldset className="citizen-glass-surface flex flex-col gap-3 p-5">

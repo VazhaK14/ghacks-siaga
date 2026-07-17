@@ -42,6 +42,8 @@ model User {
   reviewedCancellations  CancellationRequest[]   @relation("CancellationReviewedBy")
   reportAcknowledgements ReportAcknowledgement[] @relation("ReportAcknowledgementReporter")
   pushSubscriptions      PushSubscription[]
+  offlineCallsAsOperator OfflineEmergencyCall[]  @relation("OfflineCallOperator")
+  initiatedCallSessions  CallSession[]           @relation("CallSessionOperator")
 
   @@unique([email])
   @@map("user")

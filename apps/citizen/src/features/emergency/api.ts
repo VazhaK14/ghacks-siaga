@@ -55,12 +55,28 @@ export const useUpdateReporterLocationMutation = () => {
   );
 };
 
-export const useSwitchReporterModeMutation = () => {
+export const useAppendAcousticSignalMutation = () => {
   const invalidate = useInvalidateReporterReports();
   return useMutation(
-    trpc.report.switchMode.mutationOptions({ onSuccess: invalidate })
+    trpc.report.appendAcousticSignal.mutationOptions({ onSuccess: invalidate })
   );
 };
+
+export const useGetReporterLiveKitConnectionMutation = () =>
+  useMutation(trpc.report.getLiveKitToken.mutationOptions());
+
+export const useActivateReporterSessionMutation = () => {
+  const invalidate = useInvalidateReporterReports();
+  return useMutation(
+    trpc.report.activateSession.mutationOptions({ onSuccess: invalidate })
+  );
+};
+
+export const useRealtimeTranscriptionTokenMutation = () =>
+  useMutation(trpc.report.getRealtimeTranscriptionToken.mutationOptions());
+
+export const useSynthesizeSpeechMutation = () =>
+  useMutation(trpc.report.synthesizeSpeech.mutationOptions());
 
 export const useEndReporterSessionMutation = () => {
   const invalidate = useInvalidateReporterReports();
@@ -82,3 +98,20 @@ export const useAcknowledgeReportMutation = () => {
     trpc.report.acknowledge.mutationOptions({ onSuccess: invalidate })
   );
 };
+
+export const useIncomingOperatorCallQuery = (callSessionId: string | null) =>
+  useQuery(
+    trpc.report.getIncomingCall.queryOptions(
+      callSessionId ? { callSessionId } : skipToken,
+      { refetchInterval: 1000, retry: false }
+    )
+  );
+
+export const useAcceptIncomingCallMutation = () =>
+  useMutation(trpc.report.acceptIncomingCall.mutationOptions());
+
+export const useRejectIncomingCallMutation = () =>
+  useMutation(trpc.report.rejectIncomingCall.mutationOptions());
+
+export const useEndIncomingCallMutation = () =>
+  useMutation(trpc.report.endIncomingCall.mutationOptions());

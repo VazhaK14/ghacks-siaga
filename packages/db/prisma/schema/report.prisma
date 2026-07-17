@@ -11,6 +11,26 @@ enum ReportStatus {
   CANCELLED
 }
 
+enum ReportSource {
+  REGISTERED_REPORTER
+  GUEST_CALL
+}
+
+enum IntakeStatus {
+  COLLECTING
+  FINALIZING
+  FINALIZED
+}
+
+enum IntakeCompletionReason {
+  ENOUGH_INFORMATION
+  URGENT_PARTIAL
+  QUESTION_LIMIT
+  USER_ENDED
+  TECHNICAL_FAILURE
+  ACOUSTIC_TRIGGER
+}
+
 enum ReportCategory {
   UNCATEGORIZED
   LOW
@@ -78,8 +98,12 @@ enum ReportAcknowledgementType {
 model EmergencyReport {
   id String @id @default(cuid())
 
-  reporterId String
-  reporter   User   @relation("ReportsAsReporter", fields: [reporterId], references: [id])
+  reporterId String?
+  reporter   User?   @relation("ReportsAsReporter", fields: [reporterId], references: [id])
+
+  source              ReportSource          @default(REGISTERED_REPORTER)
+  sourceOfflineCallId String?               @unique
+  sourceOfflineCall   OfflineEmergencyCall? @relation("OfflineCallReport", fields: [sourceOfflineCallId], references: [id], onDelete: SetNull)
 
   accessToken    String  @unique @default(cuid())
   idempotencyKey String?
@@ -93,6 +117,12 @@ model EmergencyReport {
   summary        String?
   recommendation String?
   extractedData  Json?
+
+  intakeStatus           IntakeStatus            @default(COLLECTING)
+  intakeCompletionReason IntakeCompletionReason?
+  intakeCompletedAt      DateTime?
+  intakeQuestionCount    Int                     @default(0)
+  missingCriticalFields  Json?
 
   contactPhoneSnapshot String?
   latitude             Float?
@@ -137,6 +167,7 @@ model EmergencyReport {
   @@index([reporterId])
   @@index([assignedOperatorId])
   @@index([closedByOperatorId])
+  @@index([source])
   @@map("emergency_report")
 }
 

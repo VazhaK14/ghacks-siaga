@@ -13,7 +13,7 @@ import { useSearchParams } from "react-router";
 
 import { useActiveReportsQuery, useReportDetailQuery } from "../api";
 import type { MobileMapPanel } from "../types";
-import { useReportCallSimulation } from "../use-report-call-simulation";
+import { useReportCall } from "../use-report-call";
 import { useMapWorkspace } from "./map-workspace";
 import { ReportDetailWorkspace } from "./report-detail-workspace";
 import { ReportQueuePanel } from "./report-queue-panel";
@@ -37,8 +37,11 @@ export function MapMonitorScreen() {
     () => new Set<string>()
   );
   const reportDetailQuery = useReportDetailQuery(selectedReportId);
-  const { endCall, getSession, startCall } = useReportCallSimulation();
-  const callSession = getSession(selectedReportId);
+  const {
+    endCall,
+    session: callSession,
+    startCall,
+  } = useReportCall(selectedReportId);
 
   const allReports = useMemo(
     () => activeReportsQuery.data?.pages.flatMap((page) => page.items) ?? [],

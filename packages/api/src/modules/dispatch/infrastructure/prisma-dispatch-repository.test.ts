@@ -17,6 +17,7 @@ describe("PrismaDispatchRepository report snapshot", () => {
         isDemo: true,
         latitude: { not: null },
         longitude: { not: null },
+        status: { notIn: ["RESOLVED", "CLOSED", "CANCELLED"] },
       },
     });
     const agency = await prisma.dispatchAgency.findFirst({

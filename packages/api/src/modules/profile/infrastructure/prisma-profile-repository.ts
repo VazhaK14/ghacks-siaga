@@ -2,6 +2,7 @@ import prisma from "@siaga-app/db";
 import type { BloodType } from "@siaga-app/db/enums";
 
 import type { ReporterProfileDetail } from "../domain/entities";
+import { isReporterProfileComplete } from "../domain/profile-completion";
 import type {
   ProfileRepository,
   UpdateReporterProfileInput,
@@ -15,6 +16,7 @@ const EMPTY_PROFILE: Omit<ReporterProfileDetail, "fullName"> = {
   conditions: "",
   contactName: "",
   contactPhone: "",
+  isComplete: false,
   medications: "",
   phoneNumber: "",
   specialNeeds: "",
@@ -49,6 +51,7 @@ const toProfileDetail = (user: {
     contactName: profile.emergencyContactName ?? "",
     contactPhone: profile.emergencyContactPhone ?? "",
     fullName: user.name,
+    isComplete: isReporterProfileComplete(profile),
     medications: profile.medications ?? "",
     phoneNumber: profile.phoneNumber ?? "",
     specialNeeds: profile.specialNeeds ?? "",
@@ -101,7 +104,7 @@ export class PrismaProfileRepository implements ProfileRepository {
               emergencyContactPhone: profile.contactPhone,
               homeAddress: profile.address,
               medications: profile.medications || null,
-              phoneNumber: profile.phoneNumber || null,
+              phoneNumber: profile.phoneNumber,
               specialNeeds: profile.specialNeeds || null,
             },
             update: {
@@ -113,7 +116,7 @@ export class PrismaProfileRepository implements ProfileRepository {
               emergencyContactPhone: profile.contactPhone,
               homeAddress: profile.address,
               medications: profile.medications || null,
-              phoneNumber: profile.phoneNumber || null,
+              phoneNumber: profile.phoneNumber,
               specialNeeds: profile.specialNeeds || null,
             },
           },

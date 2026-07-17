@@ -24,6 +24,10 @@ export interface EmergencyProfile {
   specialNeeds: string;
 }
 
+export interface ReporterProfile extends EmergencyProfile {
+  isComplete: boolean;
+}
+
 export type ProfileFieldErrors = Partial<
   Record<keyof EmergencyProfile, string>
 >;

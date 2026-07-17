@@ -1,7 +1,7 @@
 import type { ReporterProfileDetail } from "./entities";
 
 export interface UpdateReporterProfileInput {
-  profile: ReporterProfileDetail;
+  profile: Omit<ReporterProfileDetail, "isComplete">;
   userId: string;
 }
 

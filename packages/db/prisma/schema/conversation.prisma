@@ -17,6 +17,7 @@ enum MessageType {
   OPERATOR_TEXT
   AI_TEXT
   TRANSCRIPT_FINAL
+  SUPPLEMENTAL_TEXT
   SYSTEM
 }
 
@@ -81,19 +82,30 @@ model CallSession {
   provider              String            @default("PENDING")
   externalCallId        String?
   livekitRoomName       String?           @unique
+  initiatedByOperatorId String?
+  initiatedByOperator   User?             @relation("CallSessionOperator", fields: [initiatedByOperatorId], references: [id])
   status                CallSessionStatus @default(CREATED)
   activeInteractionMode InteractionMode?
   startedAt             DateTime          @default(now())
+  ringingAt             DateTime?
+  answeredAt            DateTime?
+  expiresAt             DateTime?
   endedAt               DateTime?
   endReason             CallEndReason?
   durationSeconds       Int?
   recordingUrl          String?
+  summary               String?
+  keyPoints             Json?
+  callerCondition       String?
+  followUp              String?
+  confidencePercent     Int?
 
   modeEvents      ModeEvent[]
   acousticSignals AcousticSignal[]
   recording       RecordingAsset?
 
   @@index([reportId])
+  @@index([initiatedByOperatorId])
   @@map("call_session")
 }
 

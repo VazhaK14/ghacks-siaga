@@ -9,16 +9,19 @@ import { Separator } from "@siaga-app/ui/components/separator";
 import { Skeleton } from "@siaga-app/ui/components/skeleton";
 import { cn } from "@siaga-app/ui/lib/utils";
 import {
+  ActivityIcon,
+  CheckIcon,
   ExternalLinkIcon,
   MapPinIcon,
   UserRoundIcon,
   XIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type MouseEvent, type ReactNode, useCallback } from "react";
 
 import { ReportDispatchSection } from "@/features/dispatch/components/report-dispatch-section";
 import { CloseReportDialog } from "@/features/reports/components/close-report-dialog";
 import { ReportEditDialog } from "@/features/reports/components/report-edit-dialog";
+import { useReviewAcousticSignalMutation } from "../api";
 import {
   CATEGORY_CONFIG,
   formatCoordinates,
@@ -173,6 +176,169 @@ function AnalysisSection({ report }: { report: ReportDetail }) {
         />
       </dl>
     </section>
+  );
+}
+
+const INTAKE_FIELD_LABELS: Record<string, string> = {
+  IMMEDIATE_DANGER: "Ancaman langsung",
+  INCIDENT: "Jenis kejadian",
+  LOCATION: "Lokasi",
+  PEOPLE_AFFECTED: "Orang terdampak",
+};
+
+function IntakeSection({ report }: { report: ReportDetail }) {
+  return (
+    <section>
+      <h2 className="font-semibold text-foreground text-sm">
+        Status intake AI
+      </h2>
+      <dl className="mt-3 flex flex-col gap-2">
+        <DetailRow
+          label="Tahap"
+          value={report.intakeStatus.replaceAll("_", " ")}
+        />
+        <DetailRow
+          label="Pertanyaan"
+          value={`${report.intakeQuestionCount} dari maksimal 6`}
+        />
+        <DetailRow
+          label="Alasan selesai"
+          value={
+            report.intakeCompletionReason?.replaceAll("_", " ") ??
+            "Masih mengumpulkan informasi"
+          }
+        />
+      </dl>
+      {report.missingCriticalFields.length > 0 ? (
+        <div className="mt-3 rounded-md border border-warning/30 bg-warning/10 p-3">
+          <p className="font-semibold text-[10px] text-foreground">
+            Informasi belum diperoleh
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-4 text-[10px] text-muted-foreground">
+            {report.missingCriticalFields.map((field) => (
+              <li key={field}>{INTAKE_FIELD_LABELS[field] ?? field}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function SilentTranscriptSection({ report }: { report: ReportDetail }) {
+  if (report.interactionMode !== "SILENT") {
+    return null;
+  }
+  const transcripts = report.messages.filter(
+    (message) => message.type === "TRANSCRIPT_FINAL"
+  );
+
+  return (
+    <>
+      <Separator className="my-4" />
+      <section>
+        <h2 className="font-semibold text-foreground text-sm">
+          Transkrip mode sunyi
+        </h2>
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          Transkrip ambient otomatis dan belum diverifikasi operator.
+        </p>
+        {transcripts.length === 0 ? (
+          <p className="mt-3 text-muted-foreground text-xs">
+            Belum ada ucapan yang berhasil ditranskripsikan.
+          </p>
+        ) : (
+          <ol className="mt-3 flex max-h-52 flex-col gap-2 overflow-y-auto">
+            {transcripts.map((message) => (
+              <li
+                className="rounded-md border bg-muted/20 p-3"
+                key={message.id}
+              >
+                <p className="text-xs leading-relaxed">{message.content}</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  {formatReportDateTime(message.createdAt)}
+                </p>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+    </>
+  );
+}
+
+function AcousticSignalsSection({ report }: { report: ReportDetail }) {
+  const reviewSignal = useReviewAcousticSignalMutation();
+  const reviewSignalMutation = reviewSignal.mutateAsync;
+  const handleReview = useCallback(
+    async (event: MouseEvent<HTMLButtonElement>): Promise<void> => {
+      const { signalId, status } = event.currentTarget.dataset;
+      if (!signalId || (status !== "CONFIRMED" && status !== "REJECTED")) {
+        return;
+      }
+      await reviewSignalMutation({ reportId: report.id, signalId, status });
+    },
+    [report.id, reviewSignalMutation]
+  );
+  if (report.acousticSignals.length === 0) {
+    return null;
+  }
+
+  return (
+    <>
+      <Separator className="my-4" />
+      <section>
+        <h2 className="flex items-center gap-2 font-semibold text-foreground text-sm">
+          <ActivityIcon aria-hidden="true" className="size-4" />
+          Sinyal akustik
+        </h2>
+        <ul className="mt-3 flex flex-col gap-2">
+          {report.acousticSignals.map((signal) => (
+            <li className="rounded-md border p-3" key={signal.id}>
+              <div className="flex items-start justify-between gap-2">
+                <span>
+                  <span className="block font-semibold text-xs">
+                    {signal.code.replaceAll("_", " ")}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    Keyakinan {Math.round(signal.confidence * 100)}% ·{" "}
+                    {signal.status}
+                  </span>
+                </span>
+                {signal.status === "INFERRED" ? (
+                  <span className="flex gap-1">
+                    <Button
+                      aria-label="Konfirmasi sinyal"
+                      data-signal-id={signal.id}
+                      data-status="CONFIRMED"
+                      disabled={reviewSignal.isPending}
+                      onClick={handleReview}
+                      size="icon-xs"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <CheckIcon />
+                    </Button>
+                    <Button
+                      aria-label="Tolak sinyal"
+                      data-signal-id={signal.id}
+                      data-status="REJECTED"
+                      disabled={reviewSignal.isPending}
+                      onClick={handleReview}
+                      size="icon-xs"
+                      type="button"
+                      variant="ghost"
+                    >
+                      <XIcon />
+                    </Button>
+                  </span>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </>
   );
 }
 
@@ -337,6 +503,10 @@ function LoadedReportDetail({
         <LocationSection report={report} />
         <Separator className="my-4" />
         <AnalysisSection report={report} />
+        <Separator className="my-4" />
+        <IntakeSection report={report} />
+        <SilentTranscriptSection report={report} />
+        <AcousticSignalsSection report={report} />
         <AdditionalDataSection report={report} />
         <Separator className="my-4" />
         <StatusHistorySection report={report} />

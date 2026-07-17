@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@siaga-app/ui/components/card";
-import { CircleCheckBigIcon, Clock3Icon, HomeIcon } from "lucide-react";
+import { CircleCheckBigIcon, Clock3Icon } from "lucide-react";
 import { useNavigate } from "react-router";
 
 import { MobilePage } from "@/components/mobile-page";
@@ -27,7 +27,6 @@ export const CompleteScreen = () => {
     cancelIncident();
     navigate(destination, { replace: true });
   };
-  const handleHome = () => leave("/");
   const handleHistory = () => leave("/history");
 
   return (
@@ -73,14 +72,10 @@ export const CompleteScreen = () => {
             </Badge>
           </div>
         </CardContent>
-        <CardFooter className="flex gap-2">
-          <Button onClick={handleHome}>
-            <HomeIcon data-icon="inline-start" />
-            Beranda
-          </Button>
-          <Button onClick={handleHistory} variant="ghost">
+        <CardFooter>
+          <Button onClick={handleHistory}>
             <Clock3Icon data-icon="inline-start" />
-            Riwayat
+            Kembali ke riwayat
           </Button>
         </CardFooter>
       </Card>

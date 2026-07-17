@@ -50,6 +50,7 @@ const reporterMessageSchema = z.object({
     "OPERATOR_TEXT",
     "AI_TEXT",
     "TRANSCRIPT_FINAL",
+    "SUPPLEMENTAL_TEXT",
     "SYSTEM",
   ]),
 });
@@ -68,6 +69,21 @@ const reporterReportListItemSchema = z.object({
 
 export const reporterReportDetailSchema = reporterReportListItemSchema.extend({
   acknowledgements: z.array(z.enum(["HELP_VISIBLE", "WITH_RESPONDER"])),
+  acousticSignals: z.array(
+    z.object({
+      code: z.enum([
+        "SCREAM",
+        "GUNSHOT",
+        "EXPLOSION",
+        "CRYING",
+        "GLASS_BREAKING",
+        "AGGRESSIVE_SHOUTING",
+      ]),
+      confidence: z.number().min(0).max(1),
+      createdAt: z.iso.datetime(),
+      id: z.string(),
+    })
+  ),
   address: z.string().nullable(),
   assignedOperator: z
     .object({
@@ -95,6 +111,19 @@ export const reporterReportDetailSchema = reporterReportListItemSchema.extend({
       status: z.enum(["PENDING", "APPROVED", "REJECTED"]),
     })
     .nullable(),
+  intakeCompletedAt: z.iso.datetime().nullable(),
+  intakeCompletionReason: z
+    .enum([
+      "ENOUGH_INFORMATION",
+      "URGENT_PARTIAL",
+      "QUESTION_LIMIT",
+      "USER_ENDED",
+      "TECHNICAL_FAILURE",
+      "ACOUSTIC_TRIGGER",
+    ])
+    .nullable(),
+  intakeQuestionCount: z.number().int().nonnegative(),
+  intakeStatus: z.enum(["COLLECTING", "FINALIZING", "FINALIZED"]),
   latestDispatch: z
     .object({
       agencyName: z.string().nullable(),
@@ -106,6 +135,9 @@ export const reporterReportDetailSchema = reporterReportListItemSchema.extend({
   latitude: z.number().nullable(),
   longitude: z.number().nullable(),
   messages: z.array(reporterMessageSchema),
+  missingCriticalFields: z.array(
+    z.enum(["INCIDENT", "LOCATION", "IMMEDIATE_DANGER", "PEOPLE_AFFECTED"])
+  ),
   recommendation: z.string().nullable(),
   recordingStatus: z
     .enum([
@@ -156,14 +188,50 @@ export const appendReporterTextInputSchema = reporterReportIdInputSchema.extend(
   {
     content: z.string().trim().min(1).max(5000),
     idempotencyKey: z.string().min(16).max(100),
+    source: z.enum([
+      "CHAT",
+      "VOICE_TRANSCRIPT",
+      "VOICE_SUPPORT_TRANSCRIPT",
+      "SILENT_TRANSCRIPT",
+      "SUPPORT_CHAT",
+    ]),
   }
 );
 
-export const switchReporterModeInputSchema = reporterReportIdInputSchema.extend(
-  {
-    interactionMode: interactionModeSchema,
-  }
-);
+export const appendAcousticSignalInputSchema =
+  reporterReportIdInputSchema.extend({
+    code: z.enum([
+      "SCREAM",
+      "GUNSHOT",
+      "EXPLOSION",
+      "CRYING",
+      "GLASS_BREAKING",
+      "AGGRESSIVE_SHOUTING",
+    ]),
+    confidence: z.number().min(0.8).max(1),
+    endedAt: z.iso.datetime(),
+    modelId: z.string().min(1).max(100),
+    modelVersion: z.string().max(100).optional(),
+    startedAt: z.iso.datetime(),
+  });
+
+export const synthesizeSpeechInputSchema = z.object({
+  text: z.string().trim().min(1).max(500),
+});
+
+export const realtimeTranscriptionAccessSchema = z.object({
+  available: z.boolean(),
+  message: z.string().nullable(),
+  modelId: z.literal("scribe_v2_realtime"),
+  token: z.string().nullable(),
+});
+
+export const synthesizedSpeechSchema = z.object({
+  audioBase64: z.string().nullable(),
+  available: z.boolean(),
+  message: z.string().nullable(),
+  mimeType: z.literal("audio/mpeg"),
+});
 
 export const requestReporterCancellationInputSchema =
   reporterReportIdInputSchema.extend({
@@ -182,6 +250,48 @@ export const liveKitConnectionSchema = z.object({
   message: z.string().nullable(),
   token: z.string().nullable(),
   url: z.url().nullable(),
+});
+
+const operatorCallSummarySchema = z.object({
+  callerCondition: z.string(),
+  confidencePercent: z.number().int().min(0).max(100),
+  followUp: z.string(),
+  keyPoints: z.array(z.string()),
+  summary: z.string(),
+});
+
+export const operatorCallStateSchema = z.object({
+  answeredAt: z.iso.datetime().nullable(),
+  callSessionId: z.string(),
+  durationSeconds: z.number().int().nonnegative(),
+  expiresAt: z.iso.datetime(),
+  operator: z.object({ id: z.string(), name: z.string() }),
+  reporter: z.object({ id: z.string(), name: z.string() }),
+  reportId: z.string(),
+  ringingAt: z.iso.datetime(),
+  status: z.enum(["CONNECTING", "ACTIVE", "ENDED", "FAILED"]),
+  summary: operatorCallSummarySchema.nullable(),
+});
+
+export const callSessionIdInputSchema = z.object({
+  callSessionId: z.string().uuid(),
+});
+
+export const startOperatorCallOutputSchema = z.object({
+  call: operatorCallStateSchema,
+  connection: liveKitConnectionSchema,
+});
+
+export const endOperatorCallInputSchema = callSessionIdInputSchema.extend({
+  transcript: z
+    .array(
+      z.object({
+        speaker: z.enum(["OPERATOR", "REPORTER"]),
+        text: z.string().trim().min(1).max(2000),
+        timestampMs: z.number().int().nonnegative(),
+      })
+    )
+    .max(200),
 });
 
 const editableReportDetailSchema = z
@@ -229,6 +339,11 @@ export const reportIdInputSchema = z.object({
   reportId: z.string().min(1),
 });
 
+export const reviewAcousticSignalInputSchema = reportIdInputSchema.extend({
+  signalId: z.string().min(1),
+  status: z.enum(["CONFIRMED", "REJECTED"]),
+});
+
 const reportListItemSchema = z.object({
   address: z.string().nullable(),
   category: reportCategorySchema,
@@ -272,6 +387,7 @@ export const archivedReportPageSchema = z.object({
         .nullable(),
       reporter: z.object({
         id: z.string(),
+        isGuest: z.boolean(),
         name: z.string(),
       }),
       status: terminalReportStatusSchema,
@@ -351,6 +467,19 @@ export const reportDetailSchema = z.object({
   handlingMode: z.enum(["AI", "HUMAN"]),
   id: z.string(),
   incidentType: incidentTypeSchema.nullable(),
+  intakeCompletedAt: z.iso.datetime().nullable(),
+  intakeCompletionReason: z
+    .enum([
+      "ENOUGH_INFORMATION",
+      "URGENT_PARTIAL",
+      "QUESTION_LIMIT",
+      "USER_ENDED",
+      "TECHNICAL_FAILURE",
+      "ACOUSTIC_TRIGGER",
+    ])
+    .nullable(),
+  intakeQuestionCount: z.number().int().nonnegative(),
+  intakeStatus: z.enum(["COLLECTING", "FINALIZING", "FINALIZED"]),
   interactionMode: interactionModeSchema.nullable(),
   latestAnalysis: z
     .object({
@@ -366,6 +495,7 @@ export const reportDetailSchema = z.object({
   latitude: z.number().nullable(),
   longitude: z.number().nullable(),
   messages: z.array(reporterMessageSchema),
+  missingCriticalFields: z.array(z.string()),
   recommendation: z.string().nullable(),
   recording: z
     .object({
@@ -386,6 +516,7 @@ export const reportDetailSchema = z.object({
     emergencyContactName: z.string().nullable(),
     emergencyContactPhone: z.string().nullable(),
     id: z.string(),
+    isGuest: z.boolean(),
     name: z.string(),
     phoneNumber: z.string().nullable(),
   }),
@@ -456,8 +587,9 @@ export const archivedReportDetailSchema = z.object({
   id: z.string(),
   incidentType: incidentTypeSchema.nullable(),
   reporter: z.object({
-    email: z.email(),
+    email: z.string(),
     id: z.string(),
+    isGuest: z.boolean(),
     name: z.string(),
     phoneNumber: z.string().nullable(),
   }),

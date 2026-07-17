@@ -1,6 +1,7 @@
 import {
   skipToken,
   useInfiniteQuery,
+  useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
@@ -35,6 +36,40 @@ export function useReportDetailQuery(reportId: string | null) {
 
 export function useReportMapPointsQuery() {
   return useQuery(trpc.report.listActiveMapPoints.queryOptions());
+}
+
+export const useStartOperatorCallMutation = () =>
+  useMutation(trpc.report.startOperatorCall.mutationOptions());
+
+export const useCancelOperatorCallMutation = () =>
+  useMutation(trpc.report.cancelOperatorCall.mutationOptions());
+
+export const useEndOperatorCallMutation = () =>
+  useMutation(trpc.report.endOperatorCall.mutationOptions());
+
+export const useOperatorCallStateQuery = (callSessionId: string | null) =>
+  useQuery(
+    trpc.report.getOperatorCallState.queryOptions(
+      callSessionId ? { callSessionId } : skipToken,
+      {
+        meta: { suppressGlobalErrorToast: true },
+        refetchInterval: 1000,
+        retry: false,
+      }
+    )
+  );
+
+export function useReviewAcousticSignalMutation() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.report.reviewAcousticSignal.mutationOptions({
+      onSuccess: async (report) => {
+        await queryClient.invalidateQueries({
+          queryKey: trpc.report.getDetail.queryKey({ reportId: report.id }),
+        });
+      },
+    })
+  );
 }
 
 export function useReportLiveUpdates(

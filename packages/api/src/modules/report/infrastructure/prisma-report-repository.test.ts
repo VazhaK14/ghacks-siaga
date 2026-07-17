@@ -62,8 +62,12 @@ describe("PrismaReportRepository", () => {
   });
 
   test("returns operational detail and related data", async () => {
-    const firstPage = await repository.listActive({ limit: 1 });
-    const [firstReport] = firstPage.items;
+    const firstReport = await prisma.emergencyReport.findFirst({
+      where: {
+        isDemo: true,
+        status: { notIn: ["RESOLVED", "CLOSED", "CANCELLED"] },
+      },
+    });
 
     expect(firstReport).toBeDefined();
     if (!firstReport) {
@@ -76,6 +80,30 @@ describe("PrismaReportRepository", () => {
     expect(detail?.latestAnalysis).not.toBeNull();
     expect(detail?.statusHistory.length).toBeGreaterThan(0);
     expect(detail?.canEdit).toBe(detail?.editBlockReason === null);
+  });
+
+  test("maps a report from a guest call without creating a user", async () => {
+    const report = await prisma.emergencyReport.create({
+      data: {
+        category: "HIGH",
+        handlingMode: "HUMAN",
+        intakeStatus: "FINALIZED",
+        source: "GUEST_CALL",
+        status: "READY_FOR_REVIEW",
+        summary: "Ringkasan panggilan tamu",
+        title: "Laporan penelepon tamu",
+      },
+    });
+
+    try {
+      const detail = await repository.findActiveDetail(report.id);
+
+      expect(detail?.reporter.isGuest).toBeTrue();
+      expect(detail?.reporter.name).toBe("Penelepon tamu");
+      expect(detail?.reporter.id).toBe(`guest:${report.id}`);
+    } finally {
+      await prisma.emergencyReport.delete({ where: { id: report.id } });
+    }
   });
 
   test("updates detail directly and rejects a stale timestamp", async () => {
@@ -240,12 +268,9 @@ describe("PrismaReportRepository", () => {
   });
 
   test("returns read-only archived detail", async () => {
-    const page = await repository.listArchived({
-      page: 1,
-      pageSize: 10,
-      status: "RESOLVED",
+    const report = await prisma.emergencyReport.findFirst({
+      where: { isDemo: true, status: "RESOLVED" },
     });
-    const [report] = page.items;
 
     expect(report).toBeDefined();
     if (!report) {

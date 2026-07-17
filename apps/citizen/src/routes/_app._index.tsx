@@ -1,5 +1,5 @@
-import { HomeScreen } from "@/features/emergency/components/home-screen";
+import { Navigate } from "react-router";
 
-export default function HomeRoute() {
-  return <HomeScreen />;
+export default function IndexRoute() {
+  return <Navigate replace to="/history" />;
 }

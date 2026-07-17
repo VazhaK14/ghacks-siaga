@@ -349,19 +349,28 @@ export class PrismaDispatchRepository implements DispatchRepository {
           summary: report.summary,
           title: report.title,
         },
-        reporter: {
-          email: report.reporter.email,
-          emergencyContactName:
-            report.reporter.reporterProfile?.emergencyContactName ?? null,
-          emergencyContactPhone:
-            report.reporter.reporterProfile?.emergencyContactPhone ?? null,
-          id: report.reporter.id,
-          name: report.reporter.name,
-          phoneNumber:
-            report.contactPhoneSnapshot ??
-            report.reporter.reporterProfile?.phoneNumber ??
-            null,
-        },
+        reporter: report.reporter
+          ? {
+              email: report.reporter.email,
+              emergencyContactName:
+                report.reporter.reporterProfile?.emergencyContactName ?? null,
+              emergencyContactPhone:
+                report.reporter.reporterProfile?.emergencyContactPhone ?? null,
+              id: report.reporter.id,
+              name: report.reporter.name,
+              phoneNumber:
+                report.contactPhoneSnapshot ??
+                report.reporter.reporterProfile?.phoneNumber ??
+                null,
+            }
+          : {
+              email: "Tidak tersedia",
+              emergencyContactName: null,
+              emergencyContactPhone: null,
+              id: `guest:${report.id}`,
+              name: "Penelepon tamu",
+              phoneNumber: report.contactPhoneSnapshot,
+            },
       };
 
       const createdDispatch = await transaction.dispatchRequest.create({

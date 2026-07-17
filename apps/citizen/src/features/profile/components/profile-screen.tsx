@@ -8,24 +8,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@siaga-app/ui/components/card";
-import {
-  Field,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-} from "@siaga-app/ui/components/field";
-import { Input } from "@siaga-app/ui/components/input";
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@siaga-app/ui/components/select";
-import { Textarea } from "@siaga-app/ui/components/textarea";
 import { LogOutIcon, SaveIcon } from "lucide-react";
-import type { ChangeEvent, FormEvent } from "react";
+import type { FormEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -38,90 +22,23 @@ import {
   useReporterProfileQuery,
   useUpdateReporterProfileMutation,
 } from "../api";
-import type { BloodType, EmergencyProfile, ProfileFieldErrors } from "../types";
-import { EMPTY_PROFILE, validateEmergencyProfile } from "../validation";
+import type { EmergencyProfile, ProfileFieldErrors } from "../types";
+import {
+  EMPTY_PROFILE,
+  PROFILE_FIELD_FOCUS_ORDER,
+  toEmergencyProfile,
+  validateEmergencyProfile,
+} from "../validation";
+import { ProfileFields } from "./profile-fields";
 
-const BLOOD_TYPE_OPTIONS: Array<{
-  label: string;
-  value: BloodType | null;
-}> = [
-  { label: "Belum diketahui", value: null },
-  { label: "A+", value: "A_POSITIVE" },
-  { label: "A-", value: "A_NEGATIVE" },
-  { label: "B+", value: "B_POSITIVE" },
-  { label: "B-", value: "B_NEGATIVE" },
-  { label: "AB+", value: "AB_POSITIVE" },
-  { label: "AB-", value: "AB_NEGATIVE" },
-  { label: "O+", value: "O_POSITIVE" },
-  { label: "O-", value: "O_NEGATIVE" },
-  { label: "Tidak tahu", value: "UNKNOWN" },
-];
-
-interface ProfileInputProps {
-  autoComplete?: string;
-  error?: string;
-  field: keyof EmergencyProfile;
-  inputMode?: "numeric" | "tel" | "text";
-  label: string;
-  onChange: (field: keyof EmergencyProfile, value: string) => void;
-  value: string;
-}
-
-const ProfileInput = ({
-  autoComplete,
-  error,
-  field,
-  inputMode = "text",
-  label,
-  onChange,
-  value,
-}: ProfileInputProps) => {
-  const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
-    onChange(field, event.target.value);
-  };
-  return (
-    <Field data-invalid={Boolean(error)}>
-      <FieldLabel htmlFor={field}>{label}</FieldLabel>
-      <Input
-        aria-invalid={Boolean(error)}
-        autoComplete={autoComplete}
-        id={field}
-        inputMode={inputMode}
-        onChange={handleInputChange}
-        value={value}
-      />
-      <FieldError>{error}</FieldError>
-    </Field>
-  );
-};
-
-type ProfileTextareaProps = Omit<
-  ProfileInputProps,
-  "autoComplete" | "inputMode"
->;
-
-const ProfileTextarea = ({
-  error,
-  field,
-  label,
-  onChange,
-  value,
-}: ProfileTextareaProps) => {
-  const handleTextareaChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-    onChange(field, event.target.value);
-  };
-  return (
-    <Field data-invalid={Boolean(error)}>
-      <FieldLabel htmlFor={field}>{label}</FieldLabel>
-      <Textarea
-        aria-invalid={Boolean(error)}
-        id={field}
-        onChange={handleTextareaChange}
-        value={value}
-      />
-      <FieldError>{error}</FieldError>
-    </Field>
-  );
+const focusFirstErrorField = (errors: ProfileFieldErrors) => {
+  const firstField = PROFILE_FIELD_FOCUS_ORDER.find((field) => errors[field]);
+  if (!firstField) {
+    return;
+  }
+  const element = document.getElementById(firstField);
+  element?.scrollIntoView({ behavior: "smooth", block: "center" });
+  element?.focus({ preventScroll: true });
 };
 
 export const ProfileScreen = () => {
@@ -135,7 +52,7 @@ export const ProfileScreen = () => {
 
   useEffect(() => {
     if (profileQuery.data && !hasHydrated.current) {
-      setProfile(profileQuery.data);
+      setProfile(toEmergencyProfile(profileQuery.data));
       hasHydrated.current = true;
     }
   }, [profileQuery.data]);
@@ -147,14 +64,17 @@ export const ProfileScreen = () => {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const validation = validateEmergencyProfile(profile);
-    if (!validation.success) {
-      setErrors(validation.errors);
-      return;
-    }
     try {
+      const validation = validateEmergencyProfile(profile);
+      if (!validation.success) {
+        setErrors(validation.errors);
+        focusFirstErrorField(validation.errors);
+        const firstError = Object.values(validation.errors).find(Boolean);
+        toast.error(firstError ?? "Periksa kembali data profil.");
+        return;
+      }
       const saved = await updateProfile.mutateAsync(validation.profile);
-      setProfile(saved);
+      setProfile(toEmergencyProfile(saved));
       setErrors({});
       toast.success("Profil darurat tersimpan.");
     } catch (error) {
@@ -165,11 +85,15 @@ export const ProfileScreen = () => {
   };
 
   const handleSignOut = async () => {
-    await signOut.mutateAsync();
-    navigate("/sign-in", { replace: true });
-  };
-  const handleBloodTypeChange = (value: BloodType | null) => {
-    handleChange("bloodType", value ?? "");
+    try {
+      await signOut.mutateAsync();
+      toast.success("Berhasil keluar dari akun.");
+      navigate("/sign-in", { replace: true });
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Belum dapat keluar dari akun."
+      );
+    }
   };
 
   return (
@@ -193,108 +117,16 @@ export const ProfileScreen = () => {
         <CardHeader>
           <CardTitle>Identitas & kontak</CardTitle>
           <CardDescription>
-            Informasi utama untuk petugas darurat.
+            Tanda * wajib diisi. Data medis lainnya bersifat opsional.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form id="profile-form" onSubmit={handleSubmit}>
-            <FieldGroup>
-              <ProfileInput
-                autoComplete="name"
-                error={errors.fullName}
-                field="fullName"
-                label="Nama lengkap"
-                onChange={handleChange}
-                value={profile.fullName}
-              />
-              <ProfileInput
-                error={errors.age}
-                field="age"
-                inputMode="numeric"
-                label="Umur"
-                onChange={handleChange}
-                value={profile.age}
-              />
-              <ProfileInput
-                autoComplete="tel"
-                field="phoneNumber"
-                inputMode="tel"
-                label="Nomor telepon"
-                onChange={handleChange}
-                value={profile.phoneNumber}
-              />
-              <ProfileTextarea
-                error={errors.address}
-                field="address"
-                label="Alamat rumah"
-                onChange={handleChange}
-                value={profile.address}
-              />
-              <ProfileInput
-                error={errors.contactName}
-                field="contactName"
-                label="Nama kontak darurat"
-                onChange={handleChange}
-                value={profile.contactName}
-              />
-              <ProfileInput
-                autoComplete="tel"
-                error={errors.contactPhone}
-                field="contactPhone"
-                inputMode="tel"
-                label="Telepon kontak darurat"
-                onChange={handleChange}
-                value={profile.contactPhone}
-              />
-              <Field>
-                <FieldLabel htmlFor="blood-type">Golongan darah</FieldLabel>
-                <Select
-                  items={BLOOD_TYPE_OPTIONS}
-                  onValueChange={handleBloodTypeChange}
-                  value={profile.bloodType || null}
-                >
-                  <SelectTrigger className="w-full" id="blood-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent alignItemWithTrigger={false}>
-                    <SelectGroup>
-                      {BLOOD_TYPE_OPTIONS.map((option) => (
-                        <SelectItem
-                          key={option.value ?? "empty"}
-                          value={option.value}
-                        >
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <ProfileTextarea
-                field="allergies"
-                label="Alergi"
-                onChange={handleChange}
-                value={profile.allergies}
-              />
-              <ProfileTextarea
-                field="conditions"
-                label="Kondisi medis"
-                onChange={handleChange}
-                value={profile.conditions}
-              />
-              <ProfileTextarea
-                field="medications"
-                label="Obat rutin"
-                onChange={handleChange}
-                value={profile.medications}
-              />
-              <ProfileTextarea
-                field="specialNeeds"
-                label="Kebutuhan khusus"
-                onChange={handleChange}
-                value={profile.specialNeeds}
-              />
-            </FieldGroup>
+            <ProfileFields
+              errors={errors}
+              onChange={handleChange}
+              profile={profile}
+            />
           </form>
         </CardContent>
         <CardFooter>
@@ -311,14 +143,25 @@ export const ProfileScreen = () => {
 
       <PwaSettingsCard />
 
-      <Button
-        disabled={signOut.isPending}
-        onClick={handleSignOut}
-        variant="ghost"
-      >
-        <LogOutIcon data-icon="inline-start" />
-        Keluar
-      </Button>
+      <Card>
+        <CardHeader>
+          <CardTitle>Akun</CardTitle>
+          <CardDescription>
+            Keluar dari SIAGA pada perangkat ini.
+          </CardDescription>
+        </CardHeader>
+        <CardFooter>
+          <Button
+            className="w-full"
+            disabled={signOut.isPending}
+            onClick={handleSignOut}
+            variant="destructive"
+          >
+            <LogOutIcon data-icon="inline-start" />
+            {signOut.isPending ? "Sedang keluar..." : "Keluar dari akun"}
+          </Button>
+        </CardFooter>
+      </Card>
     </MobilePage>
   );
 };
