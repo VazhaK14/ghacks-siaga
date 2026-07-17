@@ -26,6 +26,12 @@ import {
   StartOperatorCall,
 } from "../application/operator-call-actions";
 import {
+  CompleteReportImageUploads,
+  GetOperatorImageAccess,
+  GetReporterImageAccess,
+  PrepareReportImageUploads,
+} from "../application/report-image-actions";
+import {
   ActivateReporterSession,
   AppendReporterAcousticSignal,
   AppendReporterText,
@@ -44,12 +50,15 @@ import { ReviewAcousticSignal } from "../application/review-acoustic-signal";
 import { UpdateReportDetail } from "../application/update-report-detail";
 import { ReportUpdateApplicationError } from "../domain/entities";
 import { OperatorCallError } from "../domain/operator-call";
+import { ReportImageApplicationError } from "../domain/report-image-attachment";
+import { CloudinaryReportImageGateway } from "../infrastructure/cloudinary-report-image-gateway";
 import { ElevenLabsVoiceAiGateway } from "../infrastructure/elevenlabs-voice-gateway";
 import { GeminiCallSummaryGenerator } from "../infrastructure/gemini-call-summary-generator";
 import { GeminiCaseAssistant } from "../infrastructure/gemini-case-assistant";
 import { LiveKitOperatorCallGateway } from "../infrastructure/livekit-operator-call-gateway";
 import { LiveKitReporterTokenGateway } from "../infrastructure/livekit-token-gateway";
 import { PrismaOperatorCallRepository } from "../infrastructure/prisma-operator-call-repository";
+import { PrismaReportImageAttachmentRepository } from "../infrastructure/prisma-report-image-attachment-repository";
 import { PrismaReportRepository } from "../infrastructure/prisma-report-repository";
 import { PrismaReporterReportRepository } from "../infrastructure/prisma-reporter-report-repository";
 import { WebPushIncomingCallNotifier } from "../infrastructure/web-push-incoming-call-notifier";
@@ -60,18 +69,24 @@ import {
   archivedReportDetailSchema,
   archivedReportPageSchema,
   callSessionIdInputSchema,
+  completeReportImageUploadsInputSchema,
   createReporterReportInputSchema,
   endOperatorCallInputSchema,
   listActiveReportsInputSchema,
   listArchivedReportsInputSchema,
   liveKitConnectionSchema,
   operatorCallStateSchema,
+  operatorImageAccessInputSchema,
+  prepareReportImageUploadsInputSchema,
+  prepareReportImageUploadsOutputSchema,
   realtimeTranscriptionAccessSchema,
   reportDetailSchema,
+  reporterImageAccessInputSchema,
   reporterReportDetailSchema,
   reporterReportIdInputSchema,
   reporterReportListSchema,
   reportIdInputSchema,
+  reportImageAccessOutputSchema,
   reportMapPointsSchema,
   requestReporterCancellationInputSchema,
   reviewAcousticSignalInputSchema,
@@ -91,6 +106,24 @@ const listActiveMapPoints = new ListActiveMapPoints(reportRepository);
 const listArchivedReports = new ListArchivedReports(reportRepository);
 const updateReportDetail = new UpdateReportDetail(reportRepository);
 const reviewAcousticSignal = new ReviewAcousticSignal(reportRepository);
+const reportImageRepository = new PrismaReportImageAttachmentRepository();
+const reportImageStorage = new CloudinaryReportImageGateway();
+const prepareReportImageUploads = new PrepareReportImageUploads(
+  reportImageRepository,
+  reportImageStorage
+);
+const completeReportImageUploads = new CompleteReportImageUploads(
+  reportImageRepository,
+  reportImageStorage
+);
+const getReporterImageAccess = new GetReporterImageAccess(
+  reportImageRepository,
+  reportImageStorage
+);
+const getOperatorImageAccess = new GetOperatorImageAccess(
+  reportImageRepository,
+  reportImageStorage
+);
 const reporterReportRepository = new PrismaReporterReportRepository();
 const caseAssistant = new GeminiCaseAssistant();
 const createReporterReport = new CreateReporterReport(reporterReportRepository);
@@ -171,6 +204,13 @@ const toUpdateTrpcError = (error: unknown): never => {
 
 const toOperatorCallTrpcError = (error: unknown): never => {
   if (error instanceof OperatorCallError) {
+    throw new TRPCError({ code: error.code, message: error.message });
+  }
+  throw error;
+};
+
+const toReportImageTrpcError = (error: unknown): never => {
+  if (error instanceof ReportImageApplicationError) {
     throw new TRPCError({ code: error.code, message: error.message });
   }
   throw error;
@@ -270,6 +310,36 @@ export const reportRouter = router({
         return detail;
       } catch (error) {
         return toUpdateTrpcError(error);
+      }
+    }),
+  completeImageUploads: completedReporterProcedure
+    .input(completeReportImageUploadsInputSchema)
+    .output(reporterReportDetailSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        await completeReportImageUploads.execute(
+          input.reportId,
+          ctx.session.user.id,
+          input.uploads
+        );
+        const report = await getReporterReport.execute(
+          input.reportId,
+          ctx.session.user.id
+        );
+        if (!report) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Laporan tidak ditemukan",
+          });
+        }
+        await publishReportLiveEvent({
+          reportId: report.id,
+          type: "report.updated",
+          updatedAt: report.updatedAt,
+        });
+        return report;
+      } catch (error) {
+        return toReportImageTrpcError(error);
       }
     }),
   create: completedReporterProcedure
@@ -419,12 +489,39 @@ export const reportRouter = router({
         return toOperatorCallTrpcError(error);
       }
     }),
+  getOperatorImageAccess: operatorProcedure
+    .input(operatorImageAccessInputSchema)
+    .output(reportImageAccessOutputSchema)
+    .query(async ({ input }) => {
+      try {
+        return await getOperatorImageAccess.execute(
+          input.reportId,
+          input.attachmentIds
+        );
+      } catch (error) {
+        return toReportImageTrpcError(error);
+      }
+    }),
   getOperatorTranscriptionToken: operatorProcedure
     .output(realtimeTranscriptionAccessSchema)
     .mutation(() => getRealtimeTranscriptionAccess.execute()),
   getRealtimeTranscriptionToken: completedReporterProcedure
     .output(realtimeTranscriptionAccessSchema)
     .mutation(() => getRealtimeTranscriptionAccess.execute()),
+  getReporterImageAccess: completedReporterProcedure
+    .input(reporterImageAccessInputSchema)
+    .output(reportImageAccessOutputSchema)
+    .query(async ({ ctx, input }) => {
+      try {
+        return await getReporterImageAccess.execute(
+          input.reportId,
+          ctx.session.user.id,
+          input.attachmentIds
+        );
+      } catch (error) {
+        return toReportImageTrpcError(error);
+      }
+    }),
   listActive: operatorProcedure
     .input(listActiveReportsInputSchema)
     .output(activeReportPageSchema)
@@ -439,6 +536,20 @@ export const reportRouter = router({
   listMine: completedReporterProcedure
     .output(reporterReportListSchema)
     .query(({ ctx }) => listReporterReports.execute(ctx.session.user.id)),
+  prepareImageUploads: completedReporterProcedure
+    .input(prepareReportImageUploadsInputSchema)
+    .output(prepareReportImageUploadsOutputSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await prepareReportImageUploads.execute(
+          input.reportId,
+          ctx.session.user.id,
+          input.files
+        );
+      } catch (error) {
+        return toReportImageTrpcError(error);
+      }
+    }),
   rejectIncomingCall: completedReporterProcedure
     .input(callSessionIdInputSchema)
     .output(operatorCallStateSchema)

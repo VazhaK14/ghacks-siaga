@@ -4,6 +4,7 @@ import type {
   ReportCategory,
   TerminalReportStatus,
 } from "./entities";
+import type { ReportImageAttachmentSummary } from "./report-image-attachment";
 
 export type ReporterReportStatus = ActiveReportStatus | TerminalReportStatus;
 export type ReporterInteractionMode = "VOICE" | "TEXT" | "SILENT";
@@ -78,6 +79,7 @@ export interface ReporterReportDetail extends ReporterReportListItem {
     reason: string;
     status: "PENDING" | "APPROVED" | "REJECTED";
   } | null;
+  imageAttachments: ReportImageAttachmentSummary[];
   intakeCompletedAt: string | null;
   intakeCompletionReason: ReporterIntakeCompletionReason | null;
   intakeQuestionCount: number;

@@ -21,6 +21,7 @@ import { type MouseEvent, type ReactNode, useCallback } from "react";
 import { ReportDispatchSection } from "@/features/dispatch/components/report-dispatch-section";
 import { CloseReportDialog } from "@/features/reports/components/close-report-dialog";
 import { ReportEditDialog } from "@/features/reports/components/report-edit-dialog";
+import { ReportImageGallery } from "@/features/reports/components/report-image-gallery";
 import { useReviewAcousticSignalMutation } from "../api";
 import {
   CATEGORY_CONFIG,
@@ -501,6 +502,15 @@ function LoadedReportDetail({
         <ReporterSection report={report} />
         <Separator className="my-4" />
         <LocationSection report={report} />
+        {report.imageAttachments.length > 0 ? (
+          <>
+            <Separator className="my-4" />
+            <ReportImageGallery
+              attachments={report.imageAttachments}
+              reportId={report.id}
+            />
+          </>
+        ) : null}
         <Separator className="my-4" />
         <AnalysisSection report={report} />
         <Separator className="my-4" />

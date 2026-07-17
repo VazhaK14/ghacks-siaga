@@ -84,12 +84,12 @@ export const PwaSettingsCard = () => {
           <Button
             disabled={push.isPending || push.status === "checking"}
             onClick={handlePushToggle}
-            variant={push.status === "enabled" ? "ghost" : "secondary"}
+            variant={push.status === "enabled" ? "secondary" : "primary"}
           >
             <BellIcon data-icon="inline-start" />
             {push.status === "enabled"
-              ? "Matikan notifikasi"
-              : "Aktifkan notifikasi"}
+              ? "Matikan Notifikasi"
+              : "Aktifkan Notifikasi"}
           </Button>
         )}
       </CardFooter>

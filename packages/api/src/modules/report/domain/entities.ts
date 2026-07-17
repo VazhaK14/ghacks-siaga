@@ -1,3 +1,5 @@
+import type { ReportImageAttachmentSummary } from "./report-image-attachment";
+
 export const ACTIVE_REPORT_STATUSES = [
   "SUBMITTED",
   "AI_GATHERING",
@@ -180,6 +182,7 @@ export interface ArchivedReportDetail {
   createdAt: string;
   dispatches: ArchivedReportDispatchItem[];
   id: string;
+  imageAttachments: ReportImageAttachmentSummary[];
   incidentType: IncidentType | null;
   reporter: {
     email: string;
@@ -242,6 +245,7 @@ export interface ReportDetail {
   extractedData: unknown;
   handlingMode: "AI" | "HUMAN";
   id: string;
+  imageAttachments: ReportImageAttachmentSummary[];
   incidentType: IncidentType | null;
   intakeCompletedAt: string | null;
   intakeCompletionReason:

@@ -44,6 +44,7 @@ model User {
   pushSubscriptions      PushSubscription[]
   offlineCallsAsOperator OfflineEmergencyCall[]  @relation("OfflineCallOperator")
   initiatedCallSessions  CallSession[]           @relation("CallSessionOperator")
+  uploadedReportImages   ReportImageAttachment[] @relation("ReportImageUploader")
 
   @@unique([email])
   @@map("user")

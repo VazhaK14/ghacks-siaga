@@ -18,6 +18,7 @@ import {
   ARCHIVED_STATUS_VARIANTS,
   formatArchivedDateTime,
 } from "../content";
+import { ReportImageGallery } from "./report-image-gallery";
 
 interface ArchivedReportDetailSheetProps {
   onOpenChange: (open: boolean) => void;
@@ -119,6 +120,11 @@ export function ArchivedReportDetailSheet({
                   {report.address ?? "Alamat tidak tersedia."}
                 </p>
               </div>
+
+              <ReportImageGallery
+                attachments={report.imageAttachments}
+                reportId={report.id}
+              />
 
               {report.closureReason ? (
                 <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3">

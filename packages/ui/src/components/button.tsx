@@ -25,7 +25,7 @@ const buttonVariants = cva(
         destructive:
           "border-2 border-red-200 bg-gradient-to-r from-red-100 to-red-200 text-neutral-100 hover:brightness-110 active:brightness-90",
         ghost:
-          "border-2 border-primary-400 bg-transparent text-primary-400 hover:bg-neutral-500/30 active:bg-neutral-500/70",
+          "border-2 border-primary-300 bg-transparent text-primary-300 hover:bg-neutral-500/30 active:bg-neutral-500/70",
         link: "text-primary underline-offset-4 hover:underline",
         primary:
           "border-2 border-primary-300 bg-gradient-to-r from-primary-200 to-primary-400 text-primary-foreground hover:brightness-110 active:brightness-90",

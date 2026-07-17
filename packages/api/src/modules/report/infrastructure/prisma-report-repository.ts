@@ -114,6 +114,19 @@ const reportDetailInclude = {
     take: 1,
     where: { status: { in: ACTIVE_DISPATCH_STATUSES } },
   },
+  imageAttachments: {
+    orderBy: { createdAt: "asc" as const },
+    select: {
+      bytes: true,
+      createdAt: true,
+      format: true,
+      height: true,
+      id: true,
+      originalFilename: true,
+      width: true,
+    },
+    where: { status: "READY" as const },
+  },
   messages: {
     orderBy: { sequence: "asc" as const },
     select: {
@@ -267,6 +280,18 @@ const toReportDetail = (report: ReportDetailRow): ReportDetail => {
     extractedData: report.extractedData,
     handlingMode: report.handlingMode,
     id: report.id,
+    imageAttachments: report.imageAttachments.flatMap((attachment) =>
+      attachment.bytes !== null && attachment.format !== null
+        ? [
+            {
+              ...attachment,
+              bytes: attachment.bytes,
+              createdAt: toIsoString(attachment.createdAt),
+              format: attachment.format,
+            },
+          ]
+        : []
+    ),
     incidentType: report.incidentType,
     intakeCompletedAt: report.intakeCompletedAt
       ? toIsoString(report.intakeCompletedAt)
@@ -511,6 +536,19 @@ export class PrismaReportRepository implements ReportRepository {
           },
           orderBy: { requestedAt: "desc" },
         },
+        imageAttachments: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            bytes: true,
+            createdAt: true,
+            format: true,
+            height: true,
+            id: true,
+            originalFilename: true,
+            width: true,
+          },
+          where: { status: "READY" },
+        },
         reporter: {
           include: { reporterProfile: true },
         },
@@ -553,6 +591,18 @@ export class PrismaReportRepository implements ReportRepository {
         unitCode: dispatch.unitCode,
       })),
       id: report.id,
+      imageAttachments: report.imageAttachments.flatMap((attachment) =>
+        attachment.bytes !== null && attachment.format !== null
+          ? [
+              {
+                ...attachment,
+                bytes: attachment.bytes,
+                createdAt: toIsoString(attachment.createdAt),
+                format: attachment.format,
+              },
+            ]
+          : []
+      ),
       incidentType: report.incidentType,
       reporter: report.reporter
         ? {

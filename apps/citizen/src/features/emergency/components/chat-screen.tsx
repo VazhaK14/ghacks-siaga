@@ -24,6 +24,7 @@ import {
 } from "../api";
 import { useIncident } from "../context";
 import { useLiveLocationReporting } from "../use-live-location-reporting";
+import { ReportImageAttachments } from "./report-image-attachments";
 import { ReportMessages } from "./report-messages";
 
 const getAssistantPresenceLabel = (
@@ -149,6 +150,13 @@ export const ChatScreen = () => {
             Anda tetap tenang dan mencatat perubahan situasi.
           </p>
         </div>
+      ) : null}
+
+      {isSupportChat && reportQuery.data ? (
+        <ReportImageAttachments
+          attachments={reportQuery.data.imageAttachments}
+          reportId={reportId}
+        />
       ) : null}
 
       <ReportMessages

@@ -31,6 +31,18 @@ export function useArchivedReportDetailQuery(reportId: string | null) {
   );
 }
 
+export function useOperatorReportImageAccessQuery(
+  reportId: string,
+  attachmentIds: string[]
+) {
+  return useQuery(
+    trpc.report.getOperatorImageAccess.queryOptions(
+      attachmentIds.length > 0 ? { attachmentIds, reportId } : skipToken,
+      { retry: false, staleTime: 4 * 60 * 1000 }
+    )
+  );
+}
+
 export function useArchivedReportLiveUpdates(): void {
   const queryClient = useQueryClient();
 

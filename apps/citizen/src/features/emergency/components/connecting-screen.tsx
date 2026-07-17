@@ -45,7 +45,10 @@ export const ConnectingScreen = () => {
   const incident = useIncident();
   const createReport = useCreateReporterReportMutation();
   const cancellation = useRequestCancellationMutation();
+  const cancellationRequested = useRef(false);
   const hasStarted = useRef(false);
+  const pendingReportId = useRef<Promise<string> | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const isOperator = incident.connectionTarget === "operator";
 
@@ -62,20 +65,31 @@ export const ConnectingScreen = () => {
 
     const connect = async () => {
       try {
-        const report = await createReport.mutateAsync({
-          address: incident.location?.address,
-          idempotencyKey,
-          incidentType: incident.category
-            ? INCIDENT_TYPE_BY_CATEGORY[incident.category]
-            : undefined,
-          interactionMode: INTERACTION_MODE_BY_REPORT_MODE[mode],
-          latitude: incident.location?.latitude,
-          longitude: incident.location?.longitude,
-          responderPreference: isOperator ? "OPERATOR" : "AI",
-        });
-        incident.setReportId(report.id);
+        const createReportId = async (): Promise<string> => {
+          const report = await createReport.mutateAsync({
+            address: incident.location?.address,
+            idempotencyKey,
+            incidentType: incident.category
+              ? INCIDENT_TYPE_BY_CATEGORY[incident.category]
+              : undefined,
+            interactionMode: INTERACTION_MODE_BY_REPORT_MODE[mode],
+            latitude: incident.location?.latitude,
+            longitude: incident.location?.longitude,
+            responderPreference: isOperator ? "OPERATOR" : "AI",
+          });
+          return report.id;
+        };
+        pendingReportId.current = createReportId();
+        const reportId = await pendingReportId.current;
+        if (cancellationRequested.current) {
+          return;
+        }
+        incident.setReportId(reportId);
         navigate(ROUTE_BY_MODE[mode], { replace: true });
       } catch (error) {
+        if (cancellationRequested.current) {
+          return;
+        }
         hasStarted.current = false;
         setConnectionError(
           error instanceof Error
@@ -88,13 +102,30 @@ export const ConnectingScreen = () => {
   }, [createReport, incident, isOperator, navigate]);
 
   const handleCancel = async () => {
-    if (incident.reportId) {
+    if (isCancelling) {
+      return;
+    }
+    cancellationRequested.current = true;
+    setIsCancelling(true);
+    let { reportId } = incident;
+    const inFlightReportId = pendingReportId.current;
+    if (!reportId && inFlightReportId) {
+      try {
+        reportId = await inFlightReportId;
+      } catch {
+        reportId = null;
+      }
+    }
+    if (reportId) {
       try {
         await cancellation.mutateAsync({
           reason: "Pelapor membatalkan saat proses koneksi",
-          reportId: incident.reportId,
+          reportId,
         });
       } catch {
+        cancellationRequested.current = false;
+        incident.setReportId(reportId);
+        setIsCancelling(false);
         setConnectionError(
           "Permintaan pembatalan belum terkirim. Laporan tetap aktif."
         );
@@ -148,8 +179,8 @@ export const ConnectingScreen = () => {
           <AlertDescription>{connectionError}</AlertDescription>
         </Alert>
       ) : null}
-      <Button onClick={handleCancel} variant="stroke">
-        Batalkan SOS
+      <Button disabled={isCancelling} onClick={handleCancel} variant="stroke">
+        {isCancelling ? "Membatalkan..." : "Batalkan SOS"}
       </Button>
     </MobilePage>
   );

@@ -16,19 +16,19 @@ export const EMERGENCY_CATEGORIES: EmergencyCategory[] = [
 
 export const REPORT_MODES: ReportModeOption[] = [
   {
-    body: "Berbicara dua arah dengan AI SIAGA yang menanyakan informasi penting.",
+    body: "Ceritakan kejadian, SIAGA akan memandu.",
     icon: Volume2Icon,
     id: "voice",
     title: "Bicara dengan suara",
   },
   {
-    body: "Tanpa panggilan suara, ketik langsung ke SIAGA.",
+    body: "Ketik laporan tanpa panggilan suara.",
     icon: MessageCircleIcon,
     id: "text",
     title: "Chat dengan teks",
   },
   {
-    body: "Perangkat tetap hening sambil mengirim transkrip dan sinyal bahaya ke operator.",
+    body: "Kirim sinyal bahaya tanpa suara.",
     icon: VolumeXIcon,
     id: "silent",
     title: "Mode senyap",

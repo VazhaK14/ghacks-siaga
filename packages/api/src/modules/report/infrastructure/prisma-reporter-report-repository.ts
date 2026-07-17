@@ -35,6 +35,9 @@ const REPORTER_REPORT_STATUSES = [
   ...ACTIVE_REPORT_STATUSES,
   ...TERMINAL_REPORT_STATUSES,
 ] as PrismaReportStatus[];
+const REPORTER_HISTORY_STATUSES = REPORTER_REPORT_STATUSES.filter(
+  (status) => status !== ReportStatus.CANCELLED
+);
 const ACTIVE_REPORT_STATUS_VALUES = [
   ...ACTIVE_REPORT_STATUSES,
 ] as PrismaReportStatus[];
@@ -93,6 +96,19 @@ const reporterReportInclude = {
     },
     orderBy: { requestedAt: "desc" as const },
     take: 1,
+  },
+  imageAttachments: {
+    orderBy: { createdAt: "asc" as const },
+    select: {
+      bytes: true,
+      createdAt: true,
+      format: true,
+      height: true,
+      id: true,
+      originalFilename: true,
+      width: true,
+    },
+    where: { status: "READY" as const },
   },
   messages: {
     orderBy: { sequence: "asc" as const },
@@ -158,6 +174,18 @@ const toReporterDetail = (report: ReporterReportRow): ReporterReportDetail => {
     category: report.category,
     createdAt: toIsoString(report.createdAt),
     id: report.id,
+    imageAttachments: report.imageAttachments.flatMap((attachment) =>
+      attachment.bytes !== null && attachment.format !== null
+        ? [
+            {
+              ...attachment,
+              bytes: attachment.bytes,
+              createdAt: toIsoString(attachment.createdAt),
+              format: attachment.format,
+            },
+          ]
+        : []
+    ),
     incidentType: report.incidentType,
     intakeCompletedAt: report.intakeCompletedAt
       ? toIsoString(report.intakeCompletedAt)
@@ -445,8 +473,11 @@ export class PrismaReporterReportRepository
         updatedAt: true,
       },
       where: {
+        cancellationRequests: {
+          none: { status: { in: ["PENDING", "APPROVED"] } },
+        },
         reporterId,
-        status: { in: REPORTER_REPORT_STATUSES },
+        status: { in: REPORTER_HISTORY_STATUSES },
       },
     });
     return reports.map((report) => ({

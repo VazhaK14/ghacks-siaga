@@ -95,6 +95,12 @@ enum ReportAcknowledgementType {
   WITH_RESPONDER
 }
 
+enum ReportImageAttachmentStatus {
+  PENDING
+  READY
+  FAILED
+}
+
 model EmergencyReport {
   id String @id @default(cuid())
 
@@ -161,6 +167,7 @@ model EmergencyReport {
   aiAnalyses           AIAnalysisSnapshot[]
   handoffEvents        HandoffEvent[]
   dispatches           DispatchRequest[]
+  imageAttachments     ReportImageAttachment[]
 
   @@unique([reporterId, idempotencyKey])
   @@index([status, category])
@@ -169,6 +176,38 @@ model EmergencyReport {
   @@index([closedByOperatorId])
   @@index([source])
   @@map("emergency_report")
+}
+
+model ReportImageAttachment {
+  id String @id @default(cuid())
+
+  reportId String
+  report   EmergencyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  uploaderId String
+  uploader   User   @relation("ReportImageUploader", fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  status                ReportImageAttachmentStatus @default(PENDING)
+  cloudinaryAssetId     String?                     @unique
+  cloudinaryPublicId    String                      @unique
+  cloudinaryVersion     Int?
+  deliveryType          String                      @default("authenticated")
+  resourceType          String                      @default("image")
+  format                String?
+  bytes                 Int?
+  width                 Int?
+  height                Int?
+  originalFilename      String
+  mimeType              String
+  uploadIntentExpiresAt DateTime
+  uploadedAt            DateTime?
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+
+  @@index([reportId, status])
+  @@index([uploaderId])
+  @@index([uploadIntentExpiresAt, status])
+  @@map("report_image_attachment")
 }
 
 model ReportStatusEvent {

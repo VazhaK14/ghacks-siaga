@@ -41,6 +41,27 @@ export const useReporterReportsQuery = () =>
     trpc.report.listMine.queryOptions(undefined, { refetchInterval: 5000 })
   );
 
+export const usePrepareReportImageUploadsMutation = () =>
+  useMutation(trpc.report.prepareImageUploads.mutationOptions());
+
+export const useCompleteReportImageUploadsMutation = () => {
+  const invalidate = useInvalidateReporterReports();
+  return useMutation(
+    trpc.report.completeImageUploads.mutationOptions({ onSuccess: invalidate })
+  );
+};
+
+export const useReporterImageAccessQuery = (
+  reportId: string,
+  attachmentIds: string[]
+) =>
+  useQuery(
+    trpc.report.getReporterImageAccess.queryOptions(
+      attachmentIds.length > 0 ? { attachmentIds, reportId } : skipToken,
+      { retry: false, staleTime: 4 * 60 * 1000 }
+    )
+  );
+
 export const useAppendReporterTextMutation = () => {
   const invalidate = useInvalidateReporterReports();
   return useMutation(

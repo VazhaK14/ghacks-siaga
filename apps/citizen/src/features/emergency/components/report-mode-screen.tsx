@@ -1,10 +1,5 @@
-import { Button } from "@siaga-app/ui/components/button";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@siaga-app/ui/components/toggle-group";
-import { HeadphonesIcon } from "lucide-react";
-import { useEffect } from "react";
+import { ChevronRightIcon, HeadphonesIcon } from "lucide-react";
+import { type MouseEvent, useEffect } from "react";
 import { useNavigate } from "react-router";
 
 import { MobilePage } from "@/components/mobile-page";
@@ -13,9 +8,8 @@ import { REPORT_MODES } from "../content";
 import { useIncident } from "../context";
 import type { ReportMode } from "../types";
 
-const REPORT_MODE_IDS = new Set<ReportMode>(["voice", "text", "silent"]);
 const isReportMode = (value: string): value is ReportMode =>
-  REPORT_MODE_IDS.has(value as ReportMode);
+  REPORT_MODES.some(({ id }) => id === value);
 
 export const ReportModeScreen = () => {
   const navigate = useNavigate();
@@ -32,10 +26,11 @@ export const ReportModeScreen = () => {
     setMode(mode);
     navigate("/connecting");
   };
-  const handleModeChange = (values: string[]) => {
-    const [selected] = values;
-    if (selected && isReportMode(selected)) {
-      handleSelectMode(selected);
+  const handleModeClick = ({
+    currentTarget,
+  }: MouseEvent<HTMLButtonElement>) => {
+    if (isReportMode(currentTarget.value)) {
+      handleSelectMode(currentTarget.value);
     }
   };
   const handleOperator = () => {
@@ -49,42 +44,79 @@ export const ReportModeScreen = () => {
   }
 
   return (
-    <MobilePage className="gap-6" title="Pilih cara melapor">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-h3">Bagaimana kamu ingin melapor?</h1>
-        <p className="text-muted-foreground text-sm">
-          Pilih cara yang paling aman untuk situasimu.
+    <MobilePage className="gap-5" title="Pilih cara melapor">
+      <header className="pt-2">
+        <div className="mb-4 flex items-center gap-2">
+          <span
+            aria-hidden="true"
+            className="size-1.5 rounded-full bg-primary-200 shadow-[0_0_0_4px_color-mix(in_oklch,var(--primary)_18%,transparent)]"
+          />
+          <span className="font-semibold text-[0.625rem] text-primary-100 tracking-[0.18em]">
+            LAPORAN AKTIF
+          </span>
+        </div>
+        <h1 className="max-w-xs text-h2">Pilih cara paling aman</h1>
+        <p className="mt-2 max-w-sm text-muted-foreground text-sm leading-relaxed">
+          Gunakan suara, teks, atau mode senyap sesuai kondisimu.
         </p>
       </header>
 
-      <ToggleGroup
-        aria-label="Cara melapor"
-        className="flex w-full flex-col gap-3"
-        onValueChange={handleModeChange}
-        value={[]}
+      <section
+        aria-label="Cara melapor dengan SIAGA"
+        className="citizen-report-modes"
       >
         {REPORT_MODES.map(({ body, icon: Icon, id, title }) => (
-          <ToggleGroupItem
+          <button
             aria-label={title}
-            className="h-auto w-full min-w-0 justify-start gap-4 whitespace-normal px-5 py-5 text-left"
+            className="citizen-report-mode group flex w-full items-center gap-4 px-4 py-4 text-left"
             key={id}
+            onClick={handleModeClick}
+            type="button"
             value={id}
           >
-            <Icon aria-hidden="true" className="size-7 shrink-0" />
-            <span className="flex min-w-0 flex-col gap-1">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-border bg-muted text-muted-foreground">
+              <Icon aria-hidden="true" className="size-5" />
+            </span>
+            <span className="min-w-0 flex-1">
               <span className="font-semibold text-sm">{title}</span>
-              <span className="font-normal text-muted-foreground text-xs leading-relaxed">
+              <span className="mt-1 block text-muted-foreground text-xs leading-relaxed">
                 {body}
               </span>
             </span>
-          </ToggleGroupItem>
+            <ChevronRightIcon
+              aria-hidden="true"
+              className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-active:translate-x-1"
+            />
+          </button>
         ))}
-      </ToggleGroup>
+      </section>
 
-      <Button onClick={handleOperator} variant="ghost">
-        <HeadphonesIcon data-icon="inline-start" />
-        Hubungkan ke operator 112
-      </Button>
+      <section aria-labelledby="operator-title" className="mt-1">
+        <p className="mb-2 px-1 font-medium text-muted-foreground text-xs">
+          Ingin langsung bicara dengan petugas?
+        </p>
+        <button
+          className="citizen-operator-option group flex w-full items-center gap-4 px-4 py-4 text-left"
+          onClick={handleOperator}
+          type="button"
+        >
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-[inset_0_1px_0_oklch(1_0_0/18%)]">
+            <HeadphonesIcon aria-hidden="true" className="size-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-semibold text-sm" id="operator-title">
+              Operator 112
+            </span>
+            <span className="mt-1 block text-muted-foreground text-xs">
+              Terhubung langsung dengan operator manusia.
+            </span>
+          </span>
+          <ChevronRightIcon
+            aria-hidden="true"
+            className="size-4 shrink-0 text-primary-100 transition-transform duration-200 group-active:translate-x-1"
+          />
+        </button>
+      </section>
     </MobilePage>
   );
 };

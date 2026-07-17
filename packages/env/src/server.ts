@@ -32,6 +32,7 @@ export const env = createEnv({
     CLOUDINARY_API_KEY: z.string().min(1).optional(),
     CLOUDINARY_API_SECRET: z.string().min(1).optional(),
     CLOUDINARY_CLOUD_NAME: z.string().min(1).optional(),
+    CLOUDINARY_REPORT_IMAGE_UPLOAD_PRESET: z.string().min(1).optional(),
     CORS_ORIGIN: z
       .string()
       .transform((v) => v.split(",").map((s) => s.trim()))

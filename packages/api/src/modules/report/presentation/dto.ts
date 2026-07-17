@@ -55,6 +55,96 @@ const reporterMessageSchema = z.object({
   ]),
 });
 
+const reportImageAttachmentSchema = z.object({
+  bytes: z.number().int().positive(),
+  createdAt: z.iso.datetime(),
+  format: z.string().min(1),
+  height: z.number().int().positive().nullable(),
+  id: z.string(),
+  originalFilename: z.string(),
+  width: z.number().int().positive().nullable(),
+});
+
+const reportImageAccessInputSchema = z.object({
+  attachmentIds: z.array(z.string().min(1)).min(1).max(20),
+  reportId: z.string().min(1),
+});
+
+export const reportImageAccessOutputSchema = z.array(
+  z.object({
+    attachmentId: z.string(),
+    expiresAt: z.iso.datetime(),
+    url: z.url(),
+  })
+);
+
+export const reporterImageAccessInputSchema = reportImageAccessInputSchema;
+export const operatorImageAccessInputSchema = reportImageAccessInputSchema;
+
+export const prepareReportImageUploadsInputSchema = z.object({
+  files: z
+    .array(
+      z.object({
+        bytes: z
+          .number()
+          .int()
+          .positive()
+          .max(5 * 1024 * 1024),
+        mimeType: z.enum([
+          "image/heic",
+          "image/heif",
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+        ]),
+        originalFilename: z.string().trim().min(1).max(255),
+      })
+    )
+    .min(1)
+    .max(3),
+  reportId: z.string().min(1),
+});
+
+export const prepareReportImageUploadsOutputSchema = z.array(
+  z.object({
+    apiKey: z.string(),
+    attachmentId: z.string(),
+    cloudName: z.string(),
+    deliveryType: z.literal("authenticated"),
+    overwrite: z.literal(false),
+    publicId: z.string(),
+    signature: z.string(),
+    timestamp: z.number().int().positive(),
+    uploadPreset: z.string(),
+  })
+);
+
+export const completeReportImageUploadsInputSchema = z.object({
+  reportId: z.string().min(1),
+  uploads: z
+    .array(
+      z.object({
+        assetId: z.string().min(1),
+        attachmentId: z.string().min(1),
+        bytes: z
+          .number()
+          .int()
+          .positive()
+          .max(5 * 1024 * 1024),
+        deliveryType: z.string().min(1),
+        format: z.string().min(1).max(10),
+        height: z.number().int().positive(),
+        publicId: z.string().min(1),
+        resourceType: z.string().min(1),
+        signature: z.string().min(1),
+        version: z.number().int().positive(),
+        width: z.number().int().positive(),
+      })
+    )
+    .min(1)
+    .max(3),
+});
+
 const reporterReportListItemSchema = z.object({
   category: reportCategorySchema,
   createdAt: z.iso.datetime(),
@@ -111,6 +201,7 @@ export const reporterReportDetailSchema = reporterReportListItemSchema.extend({
       status: z.enum(["PENDING", "APPROVED", "REJECTED"]),
     })
     .nullable(),
+  imageAttachments: z.array(reportImageAttachmentSchema),
   intakeCompletedAt: z.iso.datetime().nullable(),
   intakeCompletionReason: z
     .enum([
@@ -466,6 +557,7 @@ export const reportDetailSchema = z.object({
   extractedData: z.unknown(),
   handlingMode: z.enum(["AI", "HUMAN"]),
   id: z.string(),
+  imageAttachments: z.array(reportImageAttachmentSchema),
   incidentType: incidentTypeSchema.nullable(),
   intakeCompletedAt: z.iso.datetime().nullable(),
   intakeCompletionReason: z
@@ -585,6 +677,7 @@ export const archivedReportDetailSchema = z.object({
     })
   ),
   id: z.string(),
+  imageAttachments: z.array(reportImageAttachmentSchema),
   incidentType: incidentTypeSchema.nullable(),
   reporter: z.object({
     email: z.string(),
