@@ -93,6 +93,7 @@
     "apps/web": {
       "name": "web",
       "dependencies": {
+        "@elevenlabs/client": "^1.15.1",
         "@react-router/fs-routes": "^8.1.0",
         "@react-router/node": "^8.1.0",
         "@react-router/serve": "^8.1.0",

@@ -11,6 +11,11 @@ enum ReportStatus {
   CANCELLED
 }
 
+enum ReportSource {
+  REGISTERED_REPORTER
+  GUEST_CALL
+}
+
 enum IntakeStatus {
   COLLECTING
   FINALIZING
@@ -93,8 +98,12 @@ enum ReportAcknowledgementType {
 model EmergencyReport {
   id String @id @default(cuid())
 
-  reporterId String
-  reporter   User   @relation("ReportsAsReporter", fields: [reporterId], references: [id])
+  reporterId String?
+  reporter   User?   @relation("ReportsAsReporter", fields: [reporterId], references: [id])
+
+  source              ReportSource          @default(REGISTERED_REPORTER)
+  sourceOfflineCallId String?               @unique
+  sourceOfflineCall   OfflineEmergencyCall? @relation("OfflineCallReport", fields: [sourceOfflineCallId], references: [id], onDelete: SetNull)
 
   accessToken    String  @unique @default(cuid())
   idempotencyKey String?
@@ -158,6 +167,7 @@ model EmergencyReport {
   @@index([reporterId])
   @@index([assignedOperatorId])
   @@index([closedByOperatorId])
+  @@index([source])
   @@map("emergency_report")
 }
 

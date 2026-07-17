@@ -82,6 +82,30 @@ describe("PrismaReportRepository", () => {
     expect(detail?.canEdit).toBe(detail?.editBlockReason === null);
   });
 
+  test("maps a report from a guest call without creating a user", async () => {
+    const report = await prisma.emergencyReport.create({
+      data: {
+        category: "HIGH",
+        handlingMode: "HUMAN",
+        intakeStatus: "FINALIZED",
+        source: "GUEST_CALL",
+        status: "READY_FOR_REVIEW",
+        summary: "Ringkasan panggilan tamu",
+        title: "Laporan penelepon tamu",
+      },
+    });
+
+    try {
+      const detail = await repository.findActiveDetail(report.id);
+
+      expect(detail?.reporter.isGuest).toBeTrue();
+      expect(detail?.reporter.name).toBe("Penelepon tamu");
+      expect(detail?.reporter.id).toBe(`guest:${report.id}`);
+    } finally {
+      await prisma.emergencyReport.delete({ where: { id: report.id } });
+    }
+  });
+
   test("updates detail directly and rejects a stale timestamp", async () => {
     const report = await prisma.emergencyReport.findFirst({
       where: {

@@ -1,8 +1,9 @@
 export type OfflineCallLiveEventType =
   | "offline-call.created"
   | "offline-call.accepted"
-  | "offline-call.transcript"
-  | "offline-call.ended";
+  | "offline-call.ended"
+  | "offline-call.finalized"
+  | "offline-call.converted";
 
 export interface OfflineCallLiveEvent {
   callId: string;

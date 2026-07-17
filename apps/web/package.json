@@ -10,6 +10,7 @@
     "check-types": "react-router typegen && tsc"
   },
   "dependencies": {
+    "@elevenlabs/client": "^1.15.1",
     "@react-router/fs-routes": "^8.1.0",
     "@react-router/node": "^8.1.0",
     "@react-router/serve": "^8.1.0",
@@ -24,8 +25,8 @@
     "better-auth": "catalog:",
     "dotenv": "catalog:",
     "isbot": "^5.1.44",
-    "lucide-react": "catalog:",
     "livekit-client": "^2.20.1",
+    "lucide-react": "catalog:",
     "maplibre-gl": "^5.24.0",
     "next-themes": "catalog:",
     "react": "^19.2.7",

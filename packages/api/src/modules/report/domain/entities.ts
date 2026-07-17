@@ -121,6 +121,7 @@ export interface ArchivedReportListItem {
   } | null;
   reporter: {
     id: string;
+    isGuest: boolean;
     name: string;
   };
   status: TerminalReportStatus;
@@ -183,6 +184,7 @@ export interface ArchivedReportDetail {
   reporter: {
     email: string;
     id: string;
+    isGuest: boolean;
     name: string;
     phoneNumber: string | null;
   };
@@ -296,6 +298,7 @@ export interface ReportDetail {
     emergencyContactName: string | null;
     emergencyContactPhone: string | null;
     id: string;
+    isGuest: boolean;
     name: string;
     phoneNumber: string | null;
   };

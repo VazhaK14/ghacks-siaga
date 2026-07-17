@@ -35,10 +35,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
 import { MobilePage } from "@/components/mobile-page";
-import { useVoiceTranscription } from "@/lib/use-voice-transcription";
 
 import {
-  useAppendCallerTranscriptMutation,
   useEndOfflineCallMutation,
   useOfflineCallConnectionMutation,
   useOfflineCallQuery,
@@ -111,14 +109,12 @@ interface OfflineCallViewProps {
   audioError: string | null;
   credentials: CallCredentials | null;
   hasLocation: boolean;
-  interimText: string;
   isAudioConnected: boolean;
   isEndPending: boolean;
   isMuted: boolean;
   isSpeakerEnabled: boolean;
   isStartPending: boolean;
   isTerminal: boolean;
-  isTranscriptionUnavailable: boolean;
   onEnd: () => void;
   onMute: () => void;
   onReconnect: () => void;
@@ -131,14 +127,12 @@ const OfflineCallView = ({
   audioError,
   credentials,
   hasLocation,
-  interimText,
   isAudioConnected,
   isEndPending,
   isMuted,
   isSpeakerEnabled,
   isStartPending,
   isTerminal,
-  isTranscriptionUnavailable,
   onEnd,
   onMute,
   onReconnect,
@@ -158,16 +152,17 @@ const OfflineCallView = ({
       <Badge variant="secondary">Demo</Badge>
     </header>
     <div className="flex flex-col gap-1 text-center">
-      <h1 className="text-h3">Panggilan darurat offline</h1>
+      <h1 className="text-h3">Panggilan darurat tanpa akun</h1>
       <p className="text-muted-foreground text-sm">Penelepon tamu</p>
     </div>
     <Alert>
       <PhoneCallIcon aria-hidden="true" />
-      <AlertTitle>Prototype pitching</AlertTitle>
+      <AlertTitle>Demo online</AlertTitle>
       <AlertDescription>
-        Versi ini masih memakai internet untuk audio dan lokasi. Implementasi
-        offline sebenarnya membutuhkan integrasi PSTN/SIP dengan penyedia
-        telekomunikasi.
+        Panggilan ini memakai internet. AI mentranskripsikan percakapan secara
+        sementara untuk membantu operator membuat ringkasan. Audio dan transkrip
+        mentah tidak disimpan. Dengan memulai panggilan, kamu menyetujui
+        pemrosesan tersebut.
       </AlertDescription>
     </Alert>
     <Card className="citizen-glass-surface">
@@ -195,15 +190,6 @@ const OfflineCallView = ({
           <Alert variant="destructive">
             <AlertDescription>{audioError}</AlertDescription>
           </Alert>
-        ) : null}
-        {isTranscriptionUnavailable && isAudioConnected ? (
-          <p className="text-center text-muted-foreground text-xs">
-            Transkripsi otomatis tidak didukung browser ini. Audio tetap
-            berjalan.
-          </p>
-        ) : null}
-        {interimText.length > 0 ? (
-          <p className="rounded-md bg-muted p-3 text-sm">{interimText}</p>
         ) : null}
         {credentials && !isAudioConnected && !isTerminal ? (
           <Button onClick={onReconnect} variant="stroke">
@@ -249,7 +235,7 @@ const OfflineCallView = ({
             size="lg"
           >
             <PhoneCallIcon data-icon="inline-start" />
-            {isStartPending ? "Menghubungkan..." : "Mulai panggilan demo"}
+            {isStartPending ? "Menghubungkan..." : "Mulai panggilan online"}
           </Button>
         )}
       </CardFooter>
@@ -269,7 +255,6 @@ export const OfflineCallScreen = () => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const startCall = useStartOfflineCallMutation();
   const getConnection = useOfflineCallConnectionMutation();
-  const appendTranscript = useAppendCallerTranscriptMutation();
   const endCall = useEndOfflineCallMutation();
   const callQuery = useOfflineCallQuery(
     credentials ?? { accessToken: "", callId: "" },
@@ -322,25 +307,6 @@ export const OfflineCallScreen = () => {
     },
     [room]
   );
-
-  const handleFinalTranscript = useCallback(
-    ({ confidence, text }: { confidence?: number; text: string }) => {
-      if (!credentials) {
-        return;
-      }
-      appendTranscript.mutate({
-        ...credentials,
-        confidence,
-        content: text,
-        idempotencyKey: crypto.randomUUID(),
-      });
-    },
-    [appendTranscript, credentials]
-  );
-  const transcription = useVoiceTranscription({
-    enabled: isAudioConnected && !isMuted && !isTerminal,
-    onFinalResult: handleFinalTranscript,
-  });
 
   const handleStart = async () => {
     setAudioError(null);
@@ -418,7 +384,7 @@ export const OfflineCallScreen = () => {
   };
 
   return (
-    <MobilePage className="gap-5 pb-8" title="Panggilan Offline Demo">
+    <MobilePage className="gap-5 pb-8" title="Panggilan Tanpa Akun">
       <audio autoPlay ref={audioRef}>
         <track kind="captions" />
       </audio>
@@ -426,14 +392,12 @@ export const OfflineCallScreen = () => {
         audioError={audioError}
         credentials={credentials}
         hasLocation={Boolean(callQuery.data?.latitude)}
-        interimText={transcription.interimText}
         isAudioConnected={isAudioConnected}
         isEndPending={endCall.isPending}
         isMuted={isMuted}
         isSpeakerEnabled={isSpeakerEnabled}
         isStartPending={startCall.isPending}
         isTerminal={isTerminal}
-        isTranscriptionUnavailable={transcription.status === "unavailable"}
         onEnd={handleEnd}
         onMute={handleMute}
         onReconnect={handleReconnect}

@@ -643,6 +643,10 @@ export class PrismaReporterReportRepository
       return report.reporterId;
     });
 
+    if (!reporterId) {
+      throw new Error("Laporan tamu tidak mendukung analisis intake pelapor");
+    }
+
     const updated = await findReporterReport(reportId, reporterId);
     if (!updated) {
       throw new Error("Laporan tidak dapat dimuat setelah analisis AI");

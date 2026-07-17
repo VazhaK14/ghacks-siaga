@@ -48,10 +48,11 @@ export class PrismaPushSubscriptionRepository
     return {
       reportId: report.id,
       status: report.status,
-      subscriptions: report.reporter.pushSubscriptions.map((subscription) => ({
-        ...subscription,
-        expirationTime: subscription.expirationTime?.toISOString() ?? null,
-      })),
+      subscriptions:
+        report.reporter?.pushSubscriptions.map((subscription) => ({
+          ...subscription,
+          expirationTime: subscription.expirationTime?.toISOString() ?? null,
+        })) ?? [],
       title: report.title,
     };
   }

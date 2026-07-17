@@ -5,6 +5,8 @@ import {
   operatorProcedure,
   router,
 } from "../../../index";
+import { PrismaPushSubscriptionRepository } from "../../push/infrastructure/prisma-push-subscription-repository";
+import { WebPushGateway } from "../../push/infrastructure/web-push-gateway";
 import { ClaimAndTakeoverReport } from "../application/claim-and-takeover-report";
 import { GetArchivedReportDetail } from "../application/get-archived-report-detail";
 import { GetReportDetail } from "../application/get-report-detail";
@@ -12,6 +14,17 @@ import { GetReporterLiveKitConnection } from "../application/get-reporter-liveki
 import { ListActiveMapPoints } from "../application/list-active-map-points";
 import { ListActiveReports } from "../application/list-active-reports";
 import { ListArchivedReports } from "../application/list-archived-reports";
+import {
+  AcceptIncomingOperatorCall,
+  CancelOperatorCall,
+  EndIncomingOperatorCall,
+  EndOperatorCall,
+  GetIncomingOperatorCall,
+  GetOperatorCallState,
+  ReconnectOperatorCall,
+  RejectIncomingOperatorCall,
+  StartOperatorCall,
+} from "../application/operator-call-actions";
 import {
   AcknowledgeReport,
   ActivateReporterSession,
@@ -31,11 +44,16 @@ import {
 import { ReviewAcousticSignal } from "../application/review-acoustic-signal";
 import { UpdateReportDetail } from "../application/update-report-detail";
 import { ReportUpdateApplicationError } from "../domain/entities";
+import { OperatorCallError } from "../domain/operator-call";
 import { ElevenLabsVoiceAiGateway } from "../infrastructure/elevenlabs-voice-gateway";
+import { GeminiCallSummaryGenerator } from "../infrastructure/gemini-call-summary-generator";
 import { GeminiCaseAssistant } from "../infrastructure/gemini-case-assistant";
+import { LiveKitOperatorCallGateway } from "../infrastructure/livekit-operator-call-gateway";
 import { LiveKitReporterTokenGateway } from "../infrastructure/livekit-token-gateway";
+import { PrismaOperatorCallRepository } from "../infrastructure/prisma-operator-call-repository";
 import { PrismaReportRepository } from "../infrastructure/prisma-report-repository";
 import { PrismaReporterReportRepository } from "../infrastructure/prisma-reporter-report-repository";
+import { WebPushIncomingCallNotifier } from "../infrastructure/web-push-incoming-call-notifier";
 import {
   acknowledgeReporterInputSchema,
   activeReportPageSchema,
@@ -43,10 +61,13 @@ import {
   appendReporterTextInputSchema,
   archivedReportDetailSchema,
   archivedReportPageSchema,
+  callSessionIdInputSchema,
   createReporterReportInputSchema,
+  endOperatorCallInputSchema,
   listActiveReportsInputSchema,
   listArchivedReportsInputSchema,
   liveKitConnectionSchema,
+  operatorCallStateSchema,
   realtimeTranscriptionAccessSchema,
   reportDetailSchema,
   reporterReportDetailSchema,
@@ -56,6 +77,7 @@ import {
   reportMapPointsSchema,
   requestReporterCancellationInputSchema,
   reviewAcousticSignalInputSchema,
+  startOperatorCallOutputSchema,
   synthesizedSpeechSchema,
   synthesizeSpeechInputSchema,
   updateReportDetailInputSchema,
@@ -105,6 +127,40 @@ const getRealtimeTranscriptionAccess = new GetRealtimeTranscriptionAccess(
   voiceAiGateway
 );
 const synthesizeReporterSpeech = new SynthesizeReporterSpeech(voiceAiGateway);
+const operatorCallRepository = new PrismaOperatorCallRepository();
+const operatorCallTokenGateway = new LiveKitOperatorCallGateway();
+const incomingCallNotifier = new WebPushIncomingCallNotifier(
+  new PrismaPushSubscriptionRepository(),
+  new WebPushGateway()
+);
+const startOperatorCall = new StartOperatorCall(
+  operatorCallRepository,
+  operatorCallTokenGateway,
+  incomingCallNotifier
+);
+const getOperatorCallState = new GetOperatorCallState(operatorCallRepository);
+const getIncomingOperatorCall = new GetIncomingOperatorCall(
+  operatorCallRepository
+);
+const reconnectOperatorCall = new ReconnectOperatorCall(
+  operatorCallRepository,
+  operatorCallTokenGateway
+);
+const acceptIncomingOperatorCall = new AcceptIncomingOperatorCall(
+  operatorCallRepository,
+  operatorCallTokenGateway
+);
+const rejectIncomingOperatorCall = new RejectIncomingOperatorCall(
+  operatorCallRepository
+);
+const endIncomingOperatorCall = new EndIncomingOperatorCall(
+  operatorCallRepository
+);
+const cancelOperatorCall = new CancelOperatorCall(operatorCallRepository);
+const endOperatorCall = new EndOperatorCall(
+  operatorCallRepository,
+  new GeminiCallSummaryGenerator()
+);
 
 const toUpdateTrpcError = (error: unknown): never => {
   if (error instanceof ReportUpdateApplicationError) {
@@ -116,7 +172,27 @@ const toUpdateTrpcError = (error: unknown): never => {
   throw error;
 };
 
+const toOperatorCallTrpcError = (error: unknown): never => {
+  if (error instanceof OperatorCallError) {
+    throw new TRPCError({ code: error.code, message: error.message });
+  }
+  throw error;
+};
+
 export const reportRouter = router({
+  acceptIncomingCall: completedReporterProcedure
+    .input(callSessionIdInputSchema)
+    .output(startOperatorCallOutputSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await acceptIncomingOperatorCall.execute(
+          input.callSessionId,
+          ctx.session.user.id
+        );
+      } catch (error) {
+        return toOperatorCallTrpcError(error);
+      }
+    }),
   acknowledge: completedReporterProcedure
     .input(acknowledgeReporterInputSchema)
     .output(reporterReportDetailSchema)
@@ -180,6 +256,19 @@ export const reportRouter = router({
       });
       return report;
     }),
+  cancelOperatorCall: operatorProcedure
+    .input(callSessionIdInputSchema)
+    .output(operatorCallStateSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await cancelOperatorCall.execute(
+          input.callSessionId,
+          ctx.session.user.id
+        );
+      } catch (error) {
+        return toOperatorCallTrpcError(error);
+      }
+    }),
   claimAndTakeover: operatorProcedure
     .input(reportIdInputSchema)
     .output(reportDetailSchema)
@@ -216,6 +305,32 @@ export const reportRouter = router({
         updatedAt: report.updatedAt,
       });
       return report;
+    }),
+  endIncomingCall: completedReporterProcedure
+    .input(callSessionIdInputSchema)
+    .output(operatorCallStateSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await endIncomingOperatorCall.execute(
+          input.callSessionId,
+          ctx.session.user.id
+        );
+      } catch (error) {
+        return toOperatorCallTrpcError(error);
+      }
+    }),
+  endOperatorCall: operatorProcedure
+    .input(endOperatorCallInputSchema)
+    .output(operatorCallStateSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await endOperatorCall.execute({
+          ...input,
+          operatorId: ctx.session.user.id,
+        });
+      } catch (error) {
+        return toOperatorCallTrpcError(error);
+      }
     }),
   endSession: completedReporterProcedure
     .input(reporterReportIdInputSchema)
@@ -262,6 +377,19 @@ export const reportRouter = router({
 
       return report;
     }),
+  getIncomingCall: completedReporterProcedure
+    .input(callSessionIdInputSchema)
+    .output(operatorCallStateSchema)
+    .query(async ({ ctx, input }) => {
+      try {
+        return await getIncomingOperatorCall.execute(
+          input.callSessionId,
+          ctx.session.user.id
+        );
+      } catch (error) {
+        return toOperatorCallTrpcError(error);
+      }
+    }),
   getLiveKitToken: completedReporterProcedure
     .input(reporterReportIdInputSchema)
     .output(liveKitConnectionSchema)
@@ -284,6 +412,35 @@ export const reportRouter = router({
       }
       return report;
     }),
+  getOperatorCallConnection: operatorProcedure
+    .input(callSessionIdInputSchema)
+    .output(liveKitConnectionSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await reconnectOperatorCall.execute(
+          input.callSessionId,
+          ctx.session.user.id
+        );
+      } catch (error) {
+        return toOperatorCallTrpcError(error);
+      }
+    }),
+  getOperatorCallState: operatorProcedure
+    .input(callSessionIdInputSchema)
+    .output(operatorCallStateSchema)
+    .query(async ({ ctx, input }) => {
+      try {
+        return await getOperatorCallState.execute(
+          input.callSessionId,
+          ctx.session.user.id
+        );
+      } catch (error) {
+        return toOperatorCallTrpcError(error);
+      }
+    }),
+  getOperatorTranscriptionToken: operatorProcedure
+    .output(realtimeTranscriptionAccessSchema)
+    .mutation(() => getRealtimeTranscriptionAccess.execute()),
   getRealtimeTranscriptionToken: completedReporterProcedure
     .output(realtimeTranscriptionAccessSchema)
     .mutation(() => getRealtimeTranscriptionAccess.execute()),
@@ -301,6 +458,19 @@ export const reportRouter = router({
   listMine: completedReporterProcedure
     .output(reporterReportListSchema)
     .query(({ ctx }) => listReporterReports.execute(ctx.session.user.id)),
+  rejectIncomingCall: completedReporterProcedure
+    .input(callSessionIdInputSchema)
+    .output(operatorCallStateSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await rejectIncomingOperatorCall.execute(
+          input.callSessionId,
+          ctx.session.user.id
+        );
+      } catch (error) {
+        return toOperatorCallTrpcError(error);
+      }
+    }),
   requestCancellation: completedReporterProcedure
     .input(requestReporterCancellationInputSchema)
     .output(reporterReportDetailSchema)
@@ -332,6 +502,19 @@ export const reportRouter = router({
         updatedAt: detail.updatedAt,
       });
       return detail;
+    }),
+  startOperatorCall: operatorProcedure
+    .input(reportIdInputSchema)
+    .output(startOperatorCallOutputSchema)
+    .mutation(async ({ ctx, input }) => {
+      try {
+        return await startOperatorCall.execute(
+          input.reportId,
+          ctx.session.user.id
+        );
+      } catch (error) {
+        return toOperatorCallTrpcError(error);
+      }
     }),
   synthesizeSpeech: completedReporterProcedure
     .input(synthesizeSpeechInputSchema)

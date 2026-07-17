@@ -164,6 +164,49 @@ const toStatusHistoryItem = (event: {
   toStatus: event.toStatus,
 });
 
+const GUEST_REPORTER_NAME = "Penelepon tamu";
+const UNAVAILABLE_REPORTER_EMAIL = "Tidak tersedia";
+
+const toDispatchReporterSnapshot = (report: {
+  contactPhoneSnapshot: string | null;
+  id: string;
+  reporter: {
+    email: string;
+    id: string;
+    name: string;
+    reporterProfile: {
+      emergencyContactName: string | null;
+      emergencyContactPhone: string | null;
+      phoneNumber: string | null;
+    } | null;
+  } | null;
+}) => {
+  if (!report.reporter) {
+    return {
+      email: UNAVAILABLE_REPORTER_EMAIL,
+      emergencyContactName: null,
+      emergencyContactPhone: null,
+      id: `guest:${report.id}`,
+      name: GUEST_REPORTER_NAME,
+      phoneNumber: report.contactPhoneSnapshot,
+    };
+  }
+  const { reporter } = report;
+  return {
+    email: reporter.email,
+    emergencyContactName:
+      reporter.reporterProfile?.emergencyContactName ?? null,
+    emergencyContactPhone:
+      reporter.reporterProfile?.emergencyContactPhone ?? null,
+    id: reporter.id,
+    name: reporter.name,
+    phoneNumber:
+      report.contactPhoneSnapshot ??
+      reporter.reporterProfile?.phoneNumber ??
+      null,
+  };
+};
+
 type ReportDetailRow =
   Awaited<ReturnType<typeof findActiveDetailRow>> extends infer Result
     ? NonNullable<Result>
@@ -217,7 +260,7 @@ const toReportDetail = (report: ReportDetailRow): ReportDetail => {
     closeBlockReason: blockReason,
     contactPhone:
       report.contactPhoneSnapshot ??
-      report.reporter.reporterProfile?.phoneNumber ??
+      report.reporter?.reporterProfile?.phoneNumber ??
       null,
     createdAt: toIsoString(report.createdAt),
     editBlockReason: blockReason,
@@ -256,16 +299,27 @@ const toReportDetail = (report: ReportDetailRow): ReportDetail => {
       : [],
     recommendation: report.recommendation,
     recording: recording ?? null,
-    reporter: {
-      email: report.reporter.email,
-      emergencyContactName:
-        report.reporter.reporterProfile?.emergencyContactName ?? null,
-      emergencyContactPhone:
-        report.reporter.reporterProfile?.emergencyContactPhone ?? null,
-      id: report.reporter.id,
-      name: report.reporter.name,
-      phoneNumber: report.reporter.reporterProfile?.phoneNumber ?? null,
-    },
+    reporter: report.reporter
+      ? {
+          email: report.reporter.email,
+          emergencyContactName:
+            report.reporter.reporterProfile?.emergencyContactName ?? null,
+          emergencyContactPhone:
+            report.reporter.reporterProfile?.emergencyContactPhone ?? null,
+          id: report.reporter.id,
+          isGuest: false,
+          name: report.reporter.name,
+          phoneNumber: report.reporter.reporterProfile?.phoneNumber ?? null,
+        }
+      : {
+          email: UNAVAILABLE_REPORTER_EMAIL,
+          emergencyContactName: null,
+          emergencyContactPhone: null,
+          id: `guest:${report.id}`,
+          isGuest: true,
+          name: GUEST_REPORTER_NAME,
+          phoneNumber: null,
+        },
     responderPreference: report.responderPreference,
     status: toActiveStatus(report.status),
     statusHistory: report.statusHistory.map(toStatusHistoryItem),
@@ -500,12 +554,21 @@ export class PrismaReportRepository implements ReportRepository {
       })),
       id: report.id,
       incidentType: report.incidentType,
-      reporter: {
-        email: report.reporter.email,
-        id: report.reporter.id,
-        name: report.reporter.name,
-        phoneNumber: report.reporter.reporterProfile?.phoneNumber ?? null,
-      },
+      reporter: report.reporter
+        ? {
+            email: report.reporter.email,
+            id: report.reporter.id,
+            isGuest: false,
+            name: report.reporter.name,
+            phoneNumber: report.reporter.reporterProfile?.phoneNumber ?? null,
+          }
+        : {
+            email: UNAVAILABLE_REPORTER_EMAIL,
+            id: `guest:${report.id}`,
+            isGuest: true,
+            name: GUEST_REPORTER_NAME,
+            phoneNumber: null,
+          },
       resolvedAt: report.resolvedAt ? toIsoString(report.resolvedAt) : null,
       status: toTerminalStatus(report.status),
       statusHistory: report.statusHistory.map(toStatusHistoryItem),
@@ -597,7 +660,13 @@ export class PrismaReportRepository implements ReportRepository {
                 unitCode: latestDispatch.unitCode,
               }
             : null,
-          reporter: report.reporter,
+          reporter: report.reporter
+            ? { ...report.reporter, isGuest: false }
+            : {
+                id: `guest:${report.id}`,
+                isGuest: true,
+                name: GUEST_REPORTER_NAME,
+              },
           status: toTerminalStatus(report.status),
           summary: report.summary,
           terminalAt: toIsoString(
@@ -745,20 +814,7 @@ export class PrismaReportRepository implements ReportRepository {
                 summary: input.detail.summary,
                 title: input.detail.title,
               },
-              reporter: {
-                email: report.reporter.email,
-                emergencyContactName:
-                  report.reporter.reporterProfile?.emergencyContactName ?? null,
-                emergencyContactPhone:
-                  report.reporter.reporterProfile?.emergencyContactPhone ??
-                  null,
-                id: report.reporter.id,
-                name: report.reporter.name,
-                phoneNumber:
-                  report.contactPhoneSnapshot ??
-                  report.reporter.reporterProfile?.phoneNumber ??
-                  null,
-              },
+              reporter: toDispatchReporterSnapshot(report),
             };
             const dispatchUpdated =
               await transaction.dispatchRequest.updateMany({

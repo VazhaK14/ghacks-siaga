@@ -22,6 +22,7 @@ import {
   Track,
 } from "livekit-client";
 import {
+  BrainCircuitIcon,
   Clock3Icon,
   LocateFixedIcon,
   MicIcon,
@@ -36,16 +37,23 @@ import type { MouseEventHandler } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import type {
+  CallTranscriptionStatus,
+  CallTranscriptSegment,
+  TranscriptSpeaker,
+} from "@/features/calls/types";
+import { useCallTranscription } from "@/features/calls/use-call-transcription";
+
 import {
   useAcceptOfflineCallMutation,
-  useAppendOperatorTranscriptMutation,
   useEndOperatorCallMutation,
+  useFinalizeOfflineCallMutation,
   useOfflineCallDetailQuery,
   useOfflineCallLiveUpdates,
   useOfflineCallsQuery,
   useOperatorConnectionMutation,
 } from "./api";
-import { useVoiceTranscription } from "./use-voice-transcription";
+import { ConvertCallDialog } from "./convert-call-dialog";
 
 type OfflineCall = inferRouterOutputs<AppRouter>["offlineCall"]["list"][number];
 
@@ -58,12 +66,24 @@ const CHECKLIST = [
   "Keamanan penelepon saat ini",
   "Jenis respons yang dibutuhkan",
 ] as const;
+const MAX_TRANSCRIPT_SEGMENTS = 200;
+const TERMINAL_STATUSES = new Set(["CANCELLED", "ENDED", "FAILED", "MISSED"]);
 
 const formatCallTime = (date: Date | string): string =>
   new Intl.DateTimeFormat("id-ID", {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(date));
+
+const getQueueStatus = (call: OfflineCall): string => {
+  if (call.status === "WAITING") {
+    return "Menunggu";
+  }
+  if (call.status === "ACTIVE") {
+    return "Aktif";
+  }
+  return call.summary ? "Siap ditinjau" : "Perlu diringkas";
+};
 
 const QueueCard = ({
   call,
@@ -85,7 +105,7 @@ const QueueCard = ({
         <CardTitle className="flex items-center justify-between gap-2">
           <span>Penelepon tamu</span>
           <Badge variant={call.status === "ACTIVE" ? "default" : "secondary"}>
-            {call.status === "ACTIVE" ? "Aktif" : "Menunggu"}
+            {getQueueStatus(call)}
           </Badge>
         </CardTitle>
         <CardDescription className="flex items-center gap-2">
@@ -123,7 +143,7 @@ const CallQueue = ({
       ) : (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground text-sm">
-            Tidak ada panggilan aktif.
+            Tidak ada panggilan yang perlu ditangani.
           </CardContent>
         </Card>
       )}
@@ -131,36 +151,153 @@ const CallQueue = ({
   );
 };
 
+const getTranscriptionMessage = (input: {
+  operatorError: string | null;
+  operatorStatus: CallTranscriptionStatus;
+  reporterError: string | null;
+  reporterStatus: CallTranscriptionStatus;
+}): string | null => {
+  const hasFailure = [input.operatorStatus, input.reporterStatus].some(
+    (status) => status === "failed" || status === "unavailable"
+  );
+  if (!hasFailure) {
+    return null;
+  }
+  return (
+    input.operatorError ??
+    input.reporterError ??
+    "Transkripsi AI tidak tersedia. Audio tetap aktif."
+  );
+};
+
+const TemporaryTranscript = ({
+  active,
+  interimOperatorText,
+  interimReporterText,
+  transcript,
+}: {
+  active: boolean;
+  interimOperatorText: string;
+  interimReporterText: string;
+  transcript: CallTranscriptSegment[];
+}) => {
+  if (!active) {
+    return null;
+  }
+  const hasTranscript = Boolean(
+    transcript.length > 0 || interimOperatorText || interimReporterText
+  );
+  return (
+    <div className="max-h-72 overflow-y-auto rounded-md bg-muted/50 p-3">
+      {hasTranscript ? (
+        <div aria-live="polite" className="flex flex-col gap-3">
+          {transcript.slice(-12).map((segment) => (
+            <div
+              className="flex flex-col gap-1"
+              key={`${segment.timestampMs}-${segment.speaker}`}
+            >
+              <span className="font-semibold text-xs">
+                {segment.speaker === "REPORTER" ? "Penelepon" : "Operator"}
+              </span>
+              <p className="text-sm">{segment.text}</p>
+            </div>
+          ))}
+          {interimOperatorText ? (
+            <p className="text-muted-foreground text-sm italic">
+              Operator: {interimOperatorText}
+            </p>
+          ) : null}
+          {interimReporterText ? (
+            <p className="text-muted-foreground text-sm italic">
+              Penelepon: {interimReporterText}
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <p className="text-muted-foreground text-sm">
+          Transkrip sementara akan muncul di sini dan dibuang setelah ringkasan
+          dibuat.
+        </p>
+      )}
+    </div>
+  );
+};
+
+const CallSummaryPanel = ({ call }: { call: OfflineCall }) => {
+  if (!call.summary) {
+    return null;
+  }
+  return (
+    <div className="flex flex-col gap-4 rounded-md border bg-muted/30 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex items-center gap-2 font-semibold text-sm">
+          <BrainCircuitIcon aria-hidden="true" /> Ringkasan AI
+        </span>
+        <Badge variant="secondary">
+          Confidence {call.summary.confidencePercent}%
+        </Badge>
+      </div>
+      <p className="text-sm leading-relaxed">{call.summary.summary}</p>
+      <ul className="list-disc space-y-1 pl-5 text-muted-foreground text-sm">
+        {call.summary.keyPoints.map((keyPoint) => (
+          <li key={keyPoint}>{keyPoint}</li>
+        ))}
+      </ul>
+      <p className="text-sm">
+        <span className="font-semibold">Kondisi penelepon: </span>
+        {call.summary.callerCondition}
+      </p>
+      <p className="text-sm">
+        <span className="font-semibold">Tindak lanjut: </span>
+        {call.summary.followUp}
+      </p>
+      <ConvertCallDialog
+        callId={call.id}
+        convertedReportId={call.convertedReportId}
+        defaultSummary={call.summary.summary}
+      />
+    </div>
+  );
+};
+
 interface CallDetailCardProps {
   call: OfflineCall;
-  interimText: string;
+  interimOperatorText: string;
+  interimReporterText: string;
   isAcceptPending: boolean;
   isEndPending: boolean;
+  isFinalizing: boolean;
   isMuted: boolean;
   isSpeakerEnabled: boolean;
-  isTranscriptionUnavailable: boolean;
   onAccept: () => void;
   onEnd: () => void;
+  onFinalize: () => void;
   onMute: () => void;
   onReconnect: () => void;
   onSpeaker: () => void;
   room: Room | null;
+  transcript: CallTranscriptSegment[];
+  transcriptionMessage: string | null;
 }
 
 const CallDetailCard = ({
   call,
-  interimText,
+  interimOperatorText,
+  interimReporterText,
   isAcceptPending,
   isEndPending,
+  isFinalizing,
   isMuted,
   isSpeakerEnabled,
-  isTranscriptionUnavailable,
   onAccept,
   onEnd,
+  onFinalize,
   onMute,
   onReconnect,
   onSpeaker,
   room,
+  transcript,
+  transcriptionMessage,
 }: CallDetailCardProps) => (
   <Card>
     <CardHeader>
@@ -212,34 +349,28 @@ const CallDetailCard = ({
           </Button>
         </div>
       ) : null}
-      {isTranscriptionUnavailable && room ? (
+      {transcriptionMessage ? (
         <Alert>
-          <AlertDescription>
-            Transkripsi browser tidak tersedia. Audio tetap aktif.
-          </AlertDescription>
+          <AlertDescription>{transcriptionMessage}</AlertDescription>
         </Alert>
       ) : null}
-      {interimText.length > 0 ? (
-        <p className="rounded-md bg-muted p-3 text-sm">{interimText}</p>
+      <TemporaryTranscript
+        active={call.status === "ACTIVE"}
+        interimOperatorText={interimOperatorText}
+        interimReporterText={interimReporterText}
+        transcript={transcript}
+      />
+      {isFinalizing ? (
+        <p className="text-muted-foreground text-sm">
+          AI sedang menyusun ringkasan panggilan…
+        </p>
       ) : null}
-      <div className="max-h-72 overflow-y-auto rounded-md bg-muted/50 p-3">
-        {call.transcripts.length > 0 ? (
-          <div className="flex flex-col gap-3">
-            {call.transcripts.map((segment) => (
-              <div className="flex flex-col gap-1" key={segment.id}>
-                <span className="font-semibold text-xs">
-                  {segment.speaker === "CALLER" ? "Penelepon" : "Operator"}
-                </span>
-                <p className="text-sm">{segment.content}</p>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-muted-foreground text-sm">
-            Transkrip akan muncul di sini.
-          </p>
-        )}
-      </div>
+      {TERMINAL_STATUSES.has(call.status) && !call.summary ? (
+        <Button disabled={isFinalizing} onClick={onFinalize} variant="stroke">
+          <BrainCircuitIcon data-icon="inline-start" /> Buat ringkasan
+        </Button>
+      ) : null}
+      <CallSummaryPanel call={call} />
     </CardContent>
     {call.status === "ACTIVE" ? (
       <CardFooter>
@@ -286,7 +417,7 @@ const ChecklistCard = ({
     <CardHeader>
       <CardTitle>Checklist operator</CardTitle>
       <CardDescription>
-        Konfirmasi lisan; data ini tidak mengubah panggilan menjadi laporan.
+        Konfirmasi lisan sebelum menjadikan ringkasan sebagai laporan.
       </CardDescription>
     </CardHeader>
     <CardContent>
@@ -311,13 +442,21 @@ export const OfflineCallsScreen = () => {
   const detailQuery = useOfflineCallDetailQuery(selectedCallId);
   const acceptCall = useAcceptOfflineCallMutation();
   const operatorConnection = useOperatorConnectionMutation();
-  const appendTranscript = useAppendOperatorTranscriptMutation();
   const endCall = useEndOperatorCallMutation();
+  const finalizeCall = useFinalizeOfflineCallMutation();
   const [room, setRoom] = useState<Room | null>(null);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerEnabled, setIsSpeakerEnabled] = useState(true);
   const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set());
+  const [transcript, setTranscript] = useState<CallTranscriptSegment[]>([]);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const roomRef = useRef<Room | null>(null);
+  const activeCallIdRef = useRef<string | null>(null);
+  const transcriptRef = useRef<CallTranscriptSegment[]>([]);
+  const finalizingCallIdsRef = useRef<Set<string>>(new Set());
+  const autoFinalizedCallIdsRef = useRef<Set<string>>(new Set());
   const selectedCall = detailQuery.data;
 
   useEffect(() => {
@@ -326,13 +465,23 @@ export const OfflineCallsScreen = () => {
     }
   }, [callsQuery.data, selectedCallId]);
 
+  const disconnectAudio = useCallback((): void => {
+    roomRef.current?.disconnect();
+    roomRef.current = null;
+    setRoom(null);
+    setLocalStream(null);
+    setRemoteStream(null);
+  }, []);
+
   const connectAudio = useCallback(
-    async (connection: { token: string | null; url: string | null }) => {
+    async (
+      callId: string,
+      connection: { token: string | null; url: string | null }
+    ): Promise<void> => {
       if (!(connection.token && connection.url)) {
-        toast.error("Koneksi audio LiveKit belum tersedia.");
-        return;
+        throw new Error("Koneksi audio LiveKit belum tersedia.");
       }
-      room?.disconnect();
+      disconnectAudio();
       const nextRoom = new Room({ adaptiveStream: true, dynacast: true });
       nextRoom.on(
         RoomEvent.TrackSubscribed,
@@ -343,50 +492,143 @@ export const OfflineCallsScreen = () => {
         ) => {
           if (track.kind === Track.Kind.Audio && audioRef.current) {
             track.attach(audioRef.current);
+            setRemoteStream(new MediaStream([track.mediaStreamTrack]));
           }
         }
       );
       await nextRoom.connect(connection.url, connection.token);
       await nextRoom.startAudio();
       await nextRoom.localParticipant.setMicrophoneEnabled(true);
+      const microphonePublication =
+        nextRoom.localParticipant.getTrackPublication(Track.Source.Microphone);
+      const microphoneTrack = microphonePublication?.track?.mediaStreamTrack;
+      if (!microphoneTrack) {
+        nextRoom.disconnect();
+        throw new Error("Track mikrofon operator tidak tersedia.");
+      }
+      roomRef.current = nextRoom;
+      activeCallIdRef.current = callId;
+      setLocalStream(new MediaStream([microphoneTrack]));
       setRoom(nextRoom);
     },
-    [room]
+    [disconnectAudio]
   );
 
   useEffect(
     () => () => {
-      room?.disconnect();
+      roomRef.current?.disconnect();
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!room) {
+      return;
+    }
+    const warnBeforeUnload = (event: BeforeUnloadEvent): void => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", warnBeforeUnload);
+    return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+  }, [room]);
+
+  const appendTranscript = useCallback(
+    (speaker: TranscriptSpeaker, text: string): void => {
+      const segment = { speaker, text, timestampMs: Date.now() } as const;
+      const nextTranscript = [...transcriptRef.current, segment].slice(
+        -MAX_TRANSCRIPT_SEGMENTS
+      );
+      transcriptRef.current = nextTranscript;
+      setTranscript(nextTranscript);
+    },
+    []
+  );
+  const handleOperatorText = useCallback(
+    (text: string) => appendTranscript("OPERATOR", text),
+    [appendTranscript]
+  );
+  const handleReporterText = useCallback(
+    (text: string) => appendTranscript("REPORTER", text),
+    [appendTranscript]
+  );
+  const transcriptionEnabled = Boolean(
+    room && selectedCall?.status === "ACTIVE"
+  );
+  const operatorTranscription = useCallTranscription({
+    enabled: transcriptionEnabled && !isMuted,
+    mediaStream: localStream,
+    onCommittedText: handleOperatorText,
+  });
+  const reporterTranscription = useCallTranscription({
+    enabled: transcriptionEnabled,
+    mediaStream: remoteStream,
+    onCommittedText: handleReporterText,
+  });
+
+  const finalizeSelectedCall = useCallback(
+    async (callId: string): Promise<void> => {
+      if (finalizingCallIdsRef.current.has(callId)) {
+        return;
+      }
+      finalizingCallIdsRef.current.add(callId);
+      try {
+        await finalizeCall.mutateAsync({
+          callId,
+          transcript: transcriptRef.current,
+        });
+        transcriptRef.current = [];
+        setTranscript([]);
+        await detailQuery.refetch();
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Ringkasan panggilan gagal dibuat."
+        );
+      } finally {
+        finalizingCallIdsRef.current.delete(callId);
+      }
+    },
+    [detailQuery, finalizeCall]
+  );
+
+  useEffect(() => {
+    if (
+      selectedCall &&
+      activeCallIdRef.current === selectedCall.id &&
+      TERMINAL_STATUSES.has(selectedCall.status) &&
+      !selectedCall.summary &&
+      !autoFinalizedCallIdsRef.current.has(selectedCall.id)
+    ) {
+      autoFinalizedCallIdsRef.current.add(selectedCall.id);
+      disconnectAudio();
+      finalizeSelectedCall(selectedCall.id).catch(() => undefined);
+    }
+  }, [disconnectAudio, finalizeSelectedCall, selectedCall]);
+
+  const handleSelectCall = useCallback(
+    (callId: string): void => {
+      if (room && activeCallIdRef.current !== callId) {
+        toast.error("Akhiri panggilan aktif sebelum membuka panggilan lain.");
+        return;
+      }
+      if (activeCallIdRef.current !== callId) {
+        transcriptRef.current = [];
+        setTranscript([]);
+        setCheckedItems(new Set());
+      }
+      setSelectedCallId(callId);
     },
     [room]
   );
 
-  const handleTranscript = useCallback(
-    ({ confidence, text }: { confidence?: number; text: string }) => {
-      if (!selectedCallId) {
-        return;
-      }
-      appendTranscript.mutate({
-        callId: selectedCallId,
-        confidence,
-        content: text,
-        idempotencyKey: crypto.randomUUID(),
-      });
-    },
-    [appendTranscript, selectedCallId]
-  );
-  const transcription = useVoiceTranscription({
-    enabled: Boolean(room && selectedCall?.status === "ACTIVE" && !isMuted),
-    onFinalResult: handleTranscript,
-  });
-
-  const handleAccept = async () => {
+  const handleAccept = async (): Promise<void> => {
     if (!selectedCallId) {
       return;
     }
     try {
       const result = await acceptCall.mutateAsync({ callId: selectedCallId });
-      await connectAudio(result.connection);
+      await connectAudio(selectedCallId, result.connection);
       await detailQuery.refetch();
     } catch (error) {
       toast.error(
@@ -395,7 +637,7 @@ export const OfflineCallsScreen = () => {
     }
   };
 
-  const handleReconnect = async () => {
+  const handleReconnect = async (): Promise<void> => {
     if (!selectedCallId) {
       return;
     }
@@ -403,7 +645,7 @@ export const OfflineCallsScreen = () => {
       const connection = await operatorConnection.mutateAsync({
         callId: selectedCallId,
       });
-      await connectAudio(connection);
+      await connectAudio(selectedCallId, connection);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Audio gagal tersambung."
@@ -411,27 +653,50 @@ export const OfflineCallsScreen = () => {
     }
   };
 
-  const handleEnd = async () => {
+  const handleEnd = async (): Promise<void> => {
     if (!selectedCallId) {
       return;
     }
-    await endCall.mutateAsync({ callId: selectedCallId });
-    room?.disconnect();
-    setRoom(null);
-    setSelectedCallId(null);
-    await callsQuery.refetch();
+    try {
+      await endCall.mutateAsync({ callId: selectedCallId });
+      disconnectAudio();
+      await finalizeSelectedCall(selectedCallId);
+      await callsQuery.refetch();
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Panggilan gagal diakhiri."
+      );
+    }
   };
 
-  const handleMute = async () => {
-    if (!room) {
+  const handleMute = async (): Promise<void> => {
+    const currentRoom = roomRef.current;
+    if (!currentRoom) {
       return;
     }
     const nextMuted = !isMuted;
-    await room.localParticipant.setMicrophoneEnabled(!nextMuted);
+    const microphoneTrack = currentRoom.localParticipant.getTrackPublication(
+      Track.Source.Microphone
+    )?.track;
+    if (!microphoneTrack) {
+      toast.error("Track mikrofon operator tidak tersedia.");
+      return;
+    }
+    if (nextMuted) {
+      await microphoneTrack.mute();
+    } else {
+      await microphoneTrack.unmute();
+    }
     setIsMuted(nextMuted);
   };
 
-  const handleSpeaker = () => {
+  const handleFinalize = (): void => {
+    if (selectedCallId) {
+      finalizeSelectedCall(selectedCallId).catch(() => undefined);
+    }
+  };
+
+  const handleSpeaker = (): void => {
     const nextEnabled = !isSpeakerEnabled;
     if (audioRef.current) {
       audioRef.current.muted = !nextEnabled;
@@ -439,7 +704,7 @@ export const OfflineCallsScreen = () => {
     setIsSpeakerEnabled(nextEnabled);
   };
 
-  const handleChecklistChange = (item: string, checked: boolean) => {
+  const handleChecklistChange = (item: string, checked: boolean): void => {
     setCheckedItems((current) => {
       const next = new Set(current);
       if (checked) {
@@ -451,6 +716,13 @@ export const OfflineCallsScreen = () => {
     });
   };
 
+  const transcriptionMessage = getTranscriptionMessage({
+    operatorError: operatorTranscription.error,
+    operatorStatus: operatorTranscription.status,
+    reporterError: reporterTranscription.error,
+    reporterStatus: reporterTranscription.status,
+  });
+
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-6">
       <audio autoPlay ref={audioRef}>
@@ -458,19 +730,19 @@ export const OfflineCallsScreen = () => {
       </audio>
       <header className="flex flex-col gap-1">
         <div className="flex items-center gap-2">
-          <h1 className="text-h3">Panggilan Offline</h1>
-          <Badge variant="secondary">Demo</Badge>
+          <h1 className="text-h3">Panggilan Tanpa Akun</h1>
+          <Badge variant="secondary">Demo online</Badge>
         </div>
         <p className="text-muted-foreground text-sm">
-          Antrean audio tamu terpisah dari laporan dan tidak membuat dispatch
-          otomatis.
+          Operator berbicara langsung. AI membuat transkrip sementara dan hanya
+          menyimpan ringkasan.
         </p>
       </header>
 
       <div className="grid gap-6 xl:grid-cols-[20rem_minmax(0,1fr)]">
         <CallQueue
           calls={callsQuery.data ?? []}
-          onSelect={setSelectedCallId}
+          onSelect={handleSelectCall}
           selectedCallId={selectedCallId}
         />
 
@@ -478,18 +750,22 @@ export const OfflineCallsScreen = () => {
           <div className="grid gap-6 lg:grid-cols-2">
             <CallDetailCard
               call={selectedCall}
-              interimText={transcription.interimText}
+              interimOperatorText={operatorTranscription.interimText}
+              interimReporterText={reporterTranscription.interimText}
               isAcceptPending={acceptCall.isPending}
               isEndPending={endCall.isPending}
+              isFinalizing={finalizeCall.isPending}
               isMuted={isMuted}
               isSpeakerEnabled={isSpeakerEnabled}
-              isTranscriptionUnavailable={transcription.isUnavailable}
               onAccept={handleAccept}
               onEnd={handleEnd}
+              onFinalize={handleFinalize}
               onMute={handleMute}
               onReconnect={handleReconnect}
               onSpeaker={handleSpeaker}
               room={room}
+              transcript={transcript}
+              transcriptionMessage={transcriptionMessage}
             />
             <ChecklistCard
               checkedItems={checkedItems}

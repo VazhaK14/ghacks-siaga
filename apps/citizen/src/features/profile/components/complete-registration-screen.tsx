@@ -155,7 +155,7 @@ export const CompleteRegistrationScreen = () => {
         to="/offline-call"
       >
         <PhoneCallIcon data-icon="inline-start" />
-        Gunakan Panggilan Offline
+        Panggilan Tanpa Akun
       </Link>
     </MobilePage>
   );

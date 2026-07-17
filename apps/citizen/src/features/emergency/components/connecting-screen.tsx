@@ -12,6 +12,7 @@ import {
 } from "../api";
 import { useIncident } from "../context";
 import type { EmergencyCategory, ReportMode } from "../types";
+import { ConnectionPulse } from "./connection-pulse";
 
 const INCIDENT_TYPE_BY_CATEGORY: Record<
   EmergencyCategory,
@@ -117,22 +118,31 @@ export const ConnectingScreen = () => {
   const ConnectionIcon = isOperator ? HeadphonesIcon : BotIcon;
   return (
     <MobilePage
-      className="items-center justify-center gap-7"
+      className="items-center justify-center gap-6 overflow-hidden text-center"
       title="Menghubungkan laporan"
     >
-      <div className="citizen-glass-surface flex size-32 items-center justify-center rounded-full! bg-primary/15!">
-        <div className="flex size-20 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xl">
-          <ConnectionIcon aria-hidden="true" className="size-10" />
-        </div>
+      <div className="absolute top-1/4 -z-10 size-80 rounded-full bg-primary/10 blur-3xl" />
+      <ConnectionPulse
+        icon={ConnectionIcon}
+        label={
+          isOperator
+            ? "Sedang menghubungkan ke operator"
+            : "Sedang menghubungkan ke SIAGA AI"
+        }
+      />
+      <div className="max-w-sm">
+        <p className="mb-2 font-semibold text-primary text-xs tracking-[0.2em]">
+          SIAGA AKTIF
+        </p>
+        <h1 className="text-h3">
+          {isOperator
+            ? "Menghubungkan ke operator..."
+            : "Menghubungkan ke SIAGA AI..."}
+        </h1>
+        <p className="mt-3 text-muted-foreground text-sm leading-relaxed">
+          Tetap tenang. Laporan dan lokasi kamu sedang diamankan untuk petugas.
+        </p>
       </div>
-      <h1 className="text-center text-h3">
-        {isOperator
-          ? "Menghubungkan ke operator..."
-          : "Menghubungkan ke SIAGA AI..."}
-      </h1>
-      <p className="max-w-sm text-center text-muted-foreground text-sm">
-        Laporan sedang dibuat dan lokasi aman dikirim ke pusat SIAGA.
-      </p>
       {connectionError ? (
         <Alert variant="destructive">
           <AlertDescription>{connectionError}</AlertDescription>

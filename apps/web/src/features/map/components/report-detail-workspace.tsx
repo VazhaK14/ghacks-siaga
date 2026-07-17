@@ -7,11 +7,8 @@ import {
 import { cn } from "@siaga-app/ui/lib/utils";
 import { BrainCircuitIcon, FileTextIcon } from "lucide-react";
 
-import type {
-  CallSimulationSession,
-  DisplayError,
-  ReportDetail,
-} from "@/features/map/types";
+import type { OperatorCallSession } from "@/features/calls/types";
+import type { DisplayError, ReportDetail } from "@/features/map/types";
 import { ReportCallSummaryPanel } from "./report-call-summary-panel";
 import { ReportDetailPanel } from "./report-detail-panel";
 
@@ -20,13 +17,13 @@ interface ReportDetailWorkspaceProps {
   error: DisplayError | null;
   isPending: boolean;
   mode: "desktop" | "mobile";
-  onEndCall: (report: ReportDetail) => void;
+  onEndCall: () => Promise<void>;
   onReportResolved: (reportId: string) => void;
   onSelectAgency: (agencyId: string) => void;
-  onStartCall: (reportId: string) => void;
+  onStartCall: (reportId: string) => Promise<void>;
   report: ReportDetail | null;
   selectedAgencyId: string | null;
-  session: CallSimulationSession;
+  session: OperatorCallSession;
 }
 
 export function ReportDetailWorkspace({

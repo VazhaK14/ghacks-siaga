@@ -64,9 +64,12 @@ self.addEventListener("notificationclick", (event: NotificationEvent) => {
         const existingClient = clients.find(
           (client) => new URL(client.url).origin === new URL(targetUrl).origin
         );
+        if (!existingClient) {
+          return self.clients.openWindow(targetUrl);
+        }
         return existingClient
-          ? existingClient.focus()
-          : self.clients.openWindow(targetUrl);
+          .navigate(targetUrl)
+          .then(() => existingClient.focus());
       })
   );
 });

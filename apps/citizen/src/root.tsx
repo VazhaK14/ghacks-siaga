@@ -71,11 +71,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider
-        attribute="class"
-        defaultTheme="semi-transparent"
-        forcedTheme="semi-transparent"
-      >
+      <ThemeProvider attribute="class" defaultTheme="dark" forcedTheme="dark">
         <AuthGate>
           <IncidentProvider>
             <AppShell>

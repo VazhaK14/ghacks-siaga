@@ -7,11 +7,6 @@ enum OfflineCallStatus {
   FAILED
 }
 
-enum OfflineCallSpeaker {
-  CALLER
-  OPERATOR
-}
-
 model OfflineEmergencyCall {
   id String @id @default(cuid())
 
@@ -35,33 +30,17 @@ model OfflineEmergencyCall {
   endedAt         DateTime?
   durationSeconds Int?
 
-  transcripts OfflineCallTranscript[]
+  summary           String?
+  keyPoints         Json?
+  callerCondition   String?
+  followUp          String?
+  confidencePercent Int?
+  finalizedAt       DateTime?
+
+  convertedReport EmergencyReport? @relation("OfflineCallReport")
 
   @@unique([requestIpHash, idempotencyKey])
   @@index([status, createdAt])
   @@index([assignedOperatorId])
   @@map("offline_emergency_call")
-}
-
-model OfflineCallTranscript {
-  id String @id @default(cuid())
-
-  callId String
-  call   OfflineEmergencyCall @relation(fields: [callId], references: [id], onDelete: Cascade)
-
-  speaker        OfflineCallSpeaker
-  content        String
-  confidence     Float?
-  sequence       Int
-  idempotencyKey String
-
-  authorId String?
-  author   User?   @relation("OfflineTranscriptAuthor", fields: [authorId], references: [id])
-
-  createdAt DateTime @default(now())
-
-  @@unique([callId, idempotencyKey])
-  @@index([callId, sequence])
-  @@index([authorId])
-  @@map("offline_call_transcript")
 }

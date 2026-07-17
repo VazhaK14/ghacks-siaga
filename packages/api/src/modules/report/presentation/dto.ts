@@ -252,6 +252,48 @@ export const liveKitConnectionSchema = z.object({
   url: z.url().nullable(),
 });
 
+const operatorCallSummarySchema = z.object({
+  callerCondition: z.string(),
+  confidencePercent: z.number().int().min(0).max(100),
+  followUp: z.string(),
+  keyPoints: z.array(z.string()),
+  summary: z.string(),
+});
+
+export const operatorCallStateSchema = z.object({
+  answeredAt: z.iso.datetime().nullable(),
+  callSessionId: z.string(),
+  durationSeconds: z.number().int().nonnegative(),
+  expiresAt: z.iso.datetime(),
+  operator: z.object({ id: z.string(), name: z.string() }),
+  reporter: z.object({ id: z.string(), name: z.string() }),
+  reportId: z.string(),
+  ringingAt: z.iso.datetime(),
+  status: z.enum(["CONNECTING", "ACTIVE", "ENDED", "FAILED"]),
+  summary: operatorCallSummarySchema.nullable(),
+});
+
+export const callSessionIdInputSchema = z.object({
+  callSessionId: z.string().uuid(),
+});
+
+export const startOperatorCallOutputSchema = z.object({
+  call: operatorCallStateSchema,
+  connection: liveKitConnectionSchema,
+});
+
+export const endOperatorCallInputSchema = callSessionIdInputSchema.extend({
+  transcript: z
+    .array(
+      z.object({
+        speaker: z.enum(["OPERATOR", "REPORTER"]),
+        text: z.string().trim().min(1).max(2000),
+        timestampMs: z.number().int().nonnegative(),
+      })
+    )
+    .max(200),
+});
+
 const editableReportDetailSchema = z
   .object({
     address: z.string().trim().max(500).nullable(),
@@ -345,6 +387,7 @@ export const archivedReportPageSchema = z.object({
         .nullable(),
       reporter: z.object({
         id: z.string(),
+        isGuest: z.boolean(),
         name: z.string(),
       }),
       status: terminalReportStatusSchema,
@@ -473,6 +516,7 @@ export const reportDetailSchema = z.object({
     emergencyContactName: z.string().nullable(),
     emergencyContactPhone: z.string().nullable(),
     id: z.string(),
+    isGuest: z.boolean(),
     name: z.string(),
     phoneNumber: z.string().nullable(),
   }),
@@ -543,8 +587,9 @@ export const archivedReportDetailSchema = z.object({
   id: z.string(),
   incidentType: incidentTypeSchema.nullable(),
   reporter: z.object({
-    email: z.email(),
+    email: z.string(),
     id: z.string(),
+    isGuest: z.boolean(),
     name: z.string(),
     phoneNumber: z.string().nullable(),
   }),

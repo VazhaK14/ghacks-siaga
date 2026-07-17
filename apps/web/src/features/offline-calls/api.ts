@@ -26,11 +26,39 @@ export const useAcceptOfflineCallMutation = () =>
 export const useOperatorConnectionMutation = () =>
   useMutation(trpc.offlineCall.operatorConnection.mutationOptions());
 
-export const useAppendOperatorTranscriptMutation = () =>
-  useMutation(trpc.offlineCall.appendOperatorTranscript.mutationOptions());
-
 export const useEndOperatorCallMutation = () =>
   useMutation(trpc.offlineCall.endByOperator.mutationOptions());
+
+export const useFinalizeOfflineCallMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.offlineCall.finalize.mutationOptions({
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({
+          queryKey: trpc.offlineCall.pathKey(),
+        });
+      },
+    })
+  );
+};
+
+export const useConvertOfflineCallMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation(
+    trpc.offlineCall.convertToReport.mutationOptions({
+      onSuccess: async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: trpc.offlineCall.pathKey(),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: trpc.report.pathKey(),
+          }),
+        ]);
+      },
+    })
+  );
+};
 
 export const useOfflineCallLiveUpdates = (): void => {
   const queryClient = useQueryClient();
@@ -44,8 +72,9 @@ export const useOfflineCallLiveUpdates = (): void => {
     };
     source.addEventListener("offline-call.created", invalidate);
     source.addEventListener("offline-call.accepted", invalidate);
-    source.addEventListener("offline-call.transcript", invalidate);
     source.addEventListener("offline-call.ended", invalidate);
+    source.addEventListener("offline-call.finalized", invalidate);
+    source.addEventListener("offline-call.converted", invalidate);
     return () => source.close();
   }, [queryClient]);
 };

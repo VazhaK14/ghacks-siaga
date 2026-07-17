@@ -24,26 +24,6 @@ export type MapWorkspaceLayout =
   | "monitor"
   | "monitor-collapsed"
   | "units";
-export type CallSimulationPhase =
-  | "idle"
-  | "calling"
-  | "connected"
-  | "completed";
-
-export interface CallSummary {
-  callerCondition: string;
-  confidencePercent: number;
-  followUp: string;
-  keyPoints: string[];
-  summary: string;
-}
-
-export interface CallSimulationSession {
-  connectedAt: number | null;
-  durationSeconds: number;
-  phase: CallSimulationPhase;
-  summary: CallSummary | null;
-}
 
 export interface DisplayError {
   message: string;

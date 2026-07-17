@@ -43,7 +43,7 @@ model User {
   reportAcknowledgements ReportAcknowledgement[] @relation("ReportAcknowledgementReporter")
   pushSubscriptions      PushSubscription[]
   offlineCallsAsOperator OfflineEmergencyCall[]  @relation("OfflineCallOperator")
-  offlineCallTranscripts OfflineCallTranscript[] @relation("OfflineTranscriptAuthor")
+  initiatedCallSessions  CallSession[]           @relation("CallSessionOperator")
 
   @@unique([email])
   @@map("user")

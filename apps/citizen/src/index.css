@@ -2,7 +2,7 @@
 
 html {
   min-height: 100%;
-  background: #0d0708;
+  background: oklch(0.145 0 0);
 }
 
 body {
@@ -12,135 +12,151 @@ body {
   font-family: var(--font-sans);
 }
 
-.semi-transparent {
-  --primary: var(--color-primary-300);
-  color-scheme: dark;
-}
-
-.semi-transparent [class*="text-muted-foreground"] {
-  color: var(--muted-foreground) !important;
-}
-
-.semi-transparent body {
-  min-height: 100dvh;
-  background:
-    radial-gradient(
-      circle at 12% 4%,
-      color-mix(in oklch, var(--color-primary-400) 62%, transparent) 0,
-      transparent 32rem
-    ),
-    radial-gradient(
-      circle at 92% 38%,
-      color-mix(in oklch, var(--color-primary-500) 48%, transparent) 0,
-      transparent 28rem
-    ),
-    radial-gradient(
-      circle at 28% 100%,
-      color-mix(in oklch, var(--color-primary-300) 22%, transparent) 0,
-      transparent 24rem
-    ),
-    oklch(0.09 0.018 20);
-  background-attachment: fixed;
-}
-
-.semi-transparent [data-slot="card"],
-.semi-transparent [data-slot="alert"],
-.semi-transparent [data-slot="empty"],
-.semi-transparent [data-slot="message-scroller"],
-.semi-transparent .citizen-glass-surface,
-.semi-transparent .citizen-glass-nav {
+/* Flat surfaces — mirror the operator dark DS: solid card, hairline border,
+   no blur/glow/stacked shadows. Class names kept so components stay untouched. */
+.citizen-glass-surface {
   background-color: var(--card);
   border: 1px solid var(--border);
-  box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 24%),
-    inset 0 -1px 0 oklch(0.05 0.02 25 / 20%),
-    0 22px 56px oklch(0.05 0.02 25 / 30%);
-  backdrop-filter: blur(34px) saturate(190%);
-}
-
-.semi-transparent [data-slot="card"],
-.semi-transparent [data-slot="empty"],
-.semi-transparent [data-slot="message-scroller"],
-.semi-transparent .citizen-glass-surface {
   border-radius: calc(var(--radius) + 6px);
 }
 
-.semi-transparent [data-slot="alert"] {
-  border-radius: var(--radius);
-}
-
-.semi-transparent [data-slot="card"] [data-slot="alert"] {
-  background-color: var(--muted);
-  box-shadow: none;
-  backdrop-filter: none;
-}
-
-.semi-transparent .citizen-glass-nav {
-  background-color: var(--popover);
-  border-radius: calc(var(--radius) + 14px);
-}
-
-.semi-transparent [data-slot="toggle-group-item"] {
+.citizen-glass-nav {
   background-color: var(--card);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: inset 0 1px 0 oklch(1 0 0 / 16%);
-  backdrop-filter: blur(24px) saturate(160%);
+  border-radius: calc(var(--radius) + 14px);
+  box-shadow: 0 8px 24px oklch(0 0 0 / 40%);
 }
 
-.semi-transparent [data-slot="toggle-group-item"][data-pressed],
-.semi-transparent [data-slot="toggle-group-item"][data-state="on"] {
-  background-color: color-mix(in oklch, var(--primary) 30%, transparent);
-  border-color: color-mix(in oklch, var(--primary) 65%, white 12%);
-}
-
-.semi-transparent [data-slot="input"],
-.semi-transparent [data-slot="textarea"],
-.semi-transparent [data-slot="select-trigger"] {
-  background-color: var(--input);
-  backdrop-filter: blur(18px);
-}
-
-.semi-transparent [data-slot="button"][class*="text-primary-400"] {
-  color: var(--foreground);
-  background-color: var(--secondary);
-  border-color: var(--border);
-}
-
-.semi-transparent [data-slot="button"][class*="text-primary-400"]:hover {
-  background-color: var(--accent);
-}
-
+/* SOS button — flat core with a single thin ring instead of layered glow. */
 .citizen-sos-button {
-  box-shadow:
-    0 0 0 12px color-mix(in oklch, var(--primary) 18%, transparent),
-    0 0 0 26px color-mix(in oklch, var(--primary) 8%, transparent),
-    0 24px 64px color-mix(in oklch, var(--primary) 42%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--primary) 45%, transparent);
 }
 
+.citizen-sos-heartbeat {
+  animation: citizen-heartbeat 1.9s ease-in-out infinite;
+  will-change: transform;
+}
+
+.citizen-sos-label {
+  animation: citizen-heartbeat-label 1.9s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Single soft halo (was a 2–3 ring stack). */
+.citizen-sos-pulse-ring {
+  animation: citizen-sos-ripple 2.6s ease-out infinite;
+  will-change: opacity, transform;
+}
+
+.citizen-connection-ring,
+.citizen-connection-core {
+  will-change: opacity, transform;
+}
+
+.citizen-connection-ring {
+  animation: citizen-connection-ripple 2.4s ease-in-out infinite;
+}
+
+.citizen-connection-ring-near {
+  animation-delay: 0s;
+}
+
+.citizen-connection-ring-far {
+  animation-delay: 0.3s;
+}
+
+.citizen-connection-core {
+  animation: citizen-connection-core 1.8s ease-in-out infinite;
+}
+
+@keyframes citizen-heartbeat {
+  0%,
+  22%,
+  42%,
+  100% {
+    transform: scale(1);
+  }
+
+  12% {
+    transform: scale(1.03);
+  }
+
+  31% {
+    transform: scale(1.015);
+  }
+}
+
+@keyframes citizen-heartbeat-label {
+  0%,
+  22%,
+  42%,
+  100% {
+    transform: scale(1);
+  }
+
+  12% {
+    transform: scale(1.04);
+  }
+
+  31% {
+    transform: scale(1.02);
+  }
+}
+
+@keyframes citizen-sos-ripple {
+  0% {
+    opacity: 0.4;
+    transform: scale(0.82);
+  }
+
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes citizen-connection-ripple {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.94);
+  }
+
+  50% {
+    opacity: 0.7;
+    transform: scale(1.03);
+  }
+}
+
+@keyframes citizen-connection-core {
+  0%,
+  28%,
+  46%,
+  100% {
+    transform: scale(1);
+  }
+
+  15% {
+    transform: scale(1.06);
+  }
+
+  37% {
+    transform: scale(1.03);
+  }
+}
+
+/* Floating SOS nav button — flat: thin ring against the bar, soft shadow. */
 .citizen-nav-sos {
-  border: 6px solid color-mix(in oklch, var(--popover) 88%, transparent);
-  box-shadow:
-    0 0 0 1px color-mix(in oklch, var(--primary) 55%, white 15%),
-    0 12px 32px color-mix(in oklch, var(--primary) 52%, transparent);
+  border: 3px solid var(--card);
+  box-shadow: 0 6px 18px color-mix(in oklch, var(--primary) 35%, transparent);
   transition:
     transform 180ms ease,
     box-shadow 180ms ease;
 }
 
 .citizen-nav-sos:active {
-  transform: translateY(-1.1rem) scale(0.95);
-}
-
-@supports not (backdrop-filter: blur(1px)) {
-  .semi-transparent [data-slot="card"],
-  .semi-transparent [data-slot="alert"],
-  .semi-transparent [data-slot="empty"],
-  .semi-transparent [data-slot="message-scroller"],
-  .semi-transparent .citizen-glass-surface,
-  .semi-transparent .citizen-glass-nav {
-    background-color: oklch(0.2 0.018 20 / 96%);
-  }
+  transform: translateY(-1.5rem) scale(0.94);
 }
 
 button,
@@ -148,4 +164,14 @@ a,
 input,
 textarea {
   -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .citizen-sos-heartbeat,
+  .citizen-sos-label,
+  .citizen-sos-pulse-ring,
+  .citizen-connection-ring,
+  .citizen-connection-core {
+    animation: none;
+  }
 }
