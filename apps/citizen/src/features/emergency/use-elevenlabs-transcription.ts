@@ -8,6 +8,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useRealtimeTranscriptionTokenMutation } from "./api";
+import { withTimeout } from "./audio-timeout";
 
 type TranscriptionStatus =
   | "idle"
@@ -167,6 +168,14 @@ export const useElevenLabsTranscription = ({
       });
 
       audioContext = new AudioContext();
+      // Context ini lahir setelah await token, jadi di luar user-gesture: iOS
+      // memulainya "suspended" dan onaudioprocess tidak akan pernah menyala.
+      if (audioContext.state === "suspended") {
+        await withTimeout(audioContext.resume(), "AudioContext.resume()");
+      }
+      if (cancelled) {
+        return;
+      }
       source = audioContext.createMediaStreamSource(mediaStream);
       processor = audioContext.createScriptProcessor(4096, 1, 1);
       const mutedOutput = audioContext.createGain();

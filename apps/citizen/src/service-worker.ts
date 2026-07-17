@@ -37,10 +37,11 @@ self.addEventListener("push", (event: PushEvent) => {
     self.registration.showNotification(
       payload.title ?? DEFAULT_NOTIFICATION_TITLE,
       {
-        badge: "icons/siaga.svg",
+        badge: "logo.png",
         body: payload.body,
         data: payload.data,
-        icon: "icons/siaga.svg",
+        icon: "logo.png",
+        requireInteraction: payload.data?.url?.startsWith("incoming-call"),
         tag: payload.tag,
       }
     )

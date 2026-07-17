@@ -5,6 +5,7 @@ export interface BeforeInstallPromptEvent extends Event {
 
 export type NotificationSetupStatus =
   | "checking"
+  | "denied"
   | "enabled"
   | "disabled"
   | "unsupported";

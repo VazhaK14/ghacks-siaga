@@ -39,6 +39,16 @@ export interface OperatorCallConnection {
   url: string | null;
 }
 
+export type IncomingCallNotificationStatus =
+  | "DELIVERED"
+  | "FAILED"
+  | "UNAVAILABLE";
+
+export interface IncomingCallNotification {
+  message: string | null;
+  status: IncomingCallNotificationStatus;
+}
+
 export interface OperatorCallContext {
   category: string;
   incidentType: string | null;
@@ -104,7 +114,7 @@ export interface IncomingCallNotifier {
     callSessionId: string;
     reportId: string;
     reportTitle: string | null;
-  }) => Promise<void>;
+  }) => Promise<IncomingCallNotification>;
 }
 
 export interface OperatorCallSummaryGenerator {

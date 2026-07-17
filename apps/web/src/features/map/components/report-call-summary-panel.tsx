@@ -48,6 +48,13 @@ const getSpeakerLabel = (speaker: "OPERATOR" | "REPORTER"): string =>
 const isConnectingPhase = (phase: OperatorCallSession["phase"]): boolean =>
   phase === "requesting" || phase === "ringing";
 
+const getConnectingDescription = (session: OperatorCallSession): string => {
+  if (session.phase === "ringing" && session.error) {
+    return session.error;
+  }
+  return "Tautan aman LiveKit sedang disambungkan.";
+};
+
 const useLiveCallDuration = (session: OperatorCallSession): number => {
   const [currentTime, setCurrentTime] = useState(() => Date.now());
   useEffect(() => {
@@ -173,7 +180,7 @@ export function ReportCallSummaryPanel({
                   : "Menyiapkan panggilan"}
               </EmptyTitle>
               <EmptyDescription>
-                Tautan aman LiveKit sedang disambungkan.
+                {getConnectingDescription(session)}
               </EmptyDescription>
             </EmptyHeader>
             <Button

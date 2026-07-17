@@ -5,24 +5,13 @@ import {
   useRemovePushSubscriptionMutation,
   useSavePushSubscriptionMutation,
 } from "./api";
+import {
+  ensurePushSubscription,
+  serializePushSubscription,
+  supportsPushNotifications,
+} from "./push-subscription";
 import { registerCitizenServiceWorker } from "./service-worker-registration";
 import type { NotificationSetupStatus } from "./types";
-
-const urlBase64ToUint8Array = (value: string): Uint8Array<ArrayBuffer> => {
-  const padding = "=".repeat((4 - (value.length % 4)) % 4);
-  const normalized = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const decoded = window.atob(normalized);
-  const bytes = new Uint8Array(decoded.length);
-  for (let index = 0; index < decoded.length; index += 1) {
-    bytes[index] = decoded.charCodeAt(index);
-  }
-  return bytes;
-};
-
-const supportsPush = (): boolean =>
-  "serviceWorker" in navigator &&
-  "PushManager" in window &&
-  "Notification" in window;
 
 export const usePushNotifications = () => {
   const publicKeyQuery = usePushPublicKeyQuery();
@@ -31,8 +20,12 @@ export const usePushNotifications = () => {
   const [status, setStatus] = useState<NotificationSetupStatus>("checking");
 
   useEffect(() => {
-    if (!supportsPush()) {
+    if (!supportsPushNotifications()) {
       setStatus("unsupported");
+      return;
+    }
+    if (Notification.permission === "denied") {
+      setStatus("denied");
       return;
     }
     let cancelled = false;
@@ -54,7 +47,7 @@ export const usePushNotifications = () => {
   }, []);
 
   const enable = useCallback(async (): Promise<void> => {
-    if (!supportsPush()) {
+    if (!supportsPushNotifications()) {
       setStatus("unsupported");
       return;
     }
@@ -64,37 +57,27 @@ export const usePushNotifications = () => {
     }
     const permission = await Notification.requestPermission();
     if (permission !== "granted") {
+      if (permission === "denied") {
+        setStatus("denied");
+      }
       throw new Error("Izin notifikasi belum diberikan.");
     }
     const registration = await registerCitizenServiceWorker();
     if (!registration) {
       throw new Error("Service worker notifikasi tidak tersedia.");
     }
-    const subscription = await registration.pushManager.subscribe({
-      applicationServerKey: urlBase64ToUint8Array(publicKey),
-      userVisibleOnly: true,
-    });
-    const serialized = subscription.toJSON();
-    const auth = serialized.keys?.auth;
-    const p256dh = serialized.keys?.p256dh;
-    if (!(auth && p256dh)) {
+    const subscription = await ensurePushSubscription(registration, publicKey);
+    const serialized = serializePushSubscription(subscription);
+    if (!serialized) {
       await subscription.unsubscribe();
       throw new Error("Browser tidak mengembalikan kunci langganan push.");
     }
-    await saveSubscription.mutateAsync({
-      auth,
-      endpoint: subscription.endpoint,
-      expirationTime: subscription.expirationTime
-        ? new Date(subscription.expirationTime).toISOString()
-        : null,
-      p256dh,
-      userAgent: navigator.userAgent,
-    });
+    await saveSubscription.mutateAsync(serialized);
     setStatus("enabled");
   }, [publicKeyQuery.data?.publicKey, saveSubscription]);
 
   const disable = useCallback(async (): Promise<void> => {
-    if (!supportsPush()) {
+    if (!supportsPushNotifications()) {
       return;
     }
     const registration = await registerCitizenServiceWorker();

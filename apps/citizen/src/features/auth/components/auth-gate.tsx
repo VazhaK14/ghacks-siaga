@@ -4,6 +4,7 @@ import type { PropsWithChildren } from "react";
 import { useEffect } from "react";
 import { useLocation, useNavigate } from "react-router";
 
+import { PushSubscriptionSync } from "@/features/notifications/components/push-subscription-sync";
 import { useReporterProfileQuery } from "@/features/profile/api";
 import { authClient } from "@/lib/auth-client";
 
@@ -107,5 +108,12 @@ export const AuthGate = ({ children }: PropsWithChildren) => {
     );
   }
 
-  return children;
+  return (
+    <>
+      {session.data && isReporter ? (
+        <PushSubscriptionSync key={session.data.user.id} />
+      ) : null}
+      {children}
+    </>
+  );
 };

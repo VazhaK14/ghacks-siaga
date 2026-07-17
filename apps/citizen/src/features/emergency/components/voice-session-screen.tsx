@@ -18,6 +18,7 @@ import {
   useReporterReportQuery,
   useSynthesizeSpeechMutation,
 } from "../api";
+import { AUDIO_WARMUP_TIMEOUT_MS, withTimeout } from "../audio-timeout";
 import { useIncident } from "../context";
 import type { ReporterReport } from "../types";
 import { useElevenLabsTranscription } from "../use-elevenlabs-transcription";
@@ -151,6 +152,9 @@ const playAudio = (audio: HTMLAudioElement): Promise<void> =>
     audio.play().catch(reject);
   });
 
+const SILENT_AUDIO_DATA_URI =
+  "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQQAAACAgICA";
+
 const AI_PLAYBACK_GAIN = 1.8;
 
 const connectAmplifiedPlayback = (
@@ -198,6 +202,95 @@ const tryConnectAmplifiedPlayback = (
   }
 };
 
+/**
+ * Memanaskan audio iOS secara best-effort. Task-nya harus sudah dimulai oleh pemanggil
+ * (sinkron di dalam handler gesture) agar iOS tetap mengizinkan audio. Mengembalikan
+ * catatan kegagalan untuk ditampilkan, bukan melempar: sesi darurat tidak boleh mati
+ * hanya karena pemanasan audio gagal.
+ */
+const runAudioWarmUp = async (
+  audioContextTask: Promise<unknown>,
+  playbackUnlockTask: Promise<unknown>
+): Promise<string | null> => {
+  const results = await Promise.allSettled([
+    withTimeout(audioContextTask, "AudioContext.resume()"),
+    withTimeout(playbackUnlockTask, "HTMLAudioElement.play()"),
+  ]);
+  const failures = results
+    .filter((result) => result.status === "rejected")
+    .map((result) =>
+      result.reason instanceof Error
+        ? result.reason.message
+        : String(result.reason)
+    );
+  return failures.length > 0 ? failures.join(" | ") : null;
+};
+
+const useStalledAfter = (active: boolean, delayMs: number): boolean => {
+  const [isStalled, setIsStalled] = useState(false);
+  useEffect(() => {
+    if (!active) {
+      setIsStalled(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setIsStalled(true), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [active, delayMs]);
+  return isStalled;
+};
+
+/**
+ * Menggantikan devtools: iOS Safari tidak bisa di-inspect tanpa Mac, jadi status
+ * audio harus terbaca langsung dari perangkat saat sesi macet.
+ */
+const AudioDiagnostics = ({
+  audioContextState,
+  audioSessionStatus,
+  lastError,
+  transcriptionStatus,
+  warmupNote,
+}: {
+  audioContextState: AudioContextState | null;
+  audioSessionStatus: string;
+  lastError: string | null;
+  transcriptionStatus: string;
+  warmupNote: string | null;
+}) => (
+  <ul className="space-y-0.5 font-mono text-xs">
+    <li>AudioContext: {audioContextState ?? "belum ada"}</li>
+    <li>Sesi audio: {audioSessionStatus}</li>
+    <li>Transkripsi: {transcriptionStatus}</li>
+    <li>Warm-up: {warmupNote ?? "ok"}</li>
+    <li>Error: {lastError ?? "tidak ada"}</li>
+  </ul>
+);
+
+const VoiceResponseErrorAlert = ({
+  canRetry,
+  error,
+  onRetry,
+}: {
+  canRetry: boolean;
+  error: string | null;
+  onRetry: () => Promise<void>;
+}) => {
+  if (!error) {
+    return null;
+  }
+  return (
+    <Alert variant="destructive">
+      <AlertTitle>Respons suara tidak tersedia</AlertTitle>
+      <AlertDescription>{error}</AlertDescription>
+      {canRetry ? (
+        <Button onClick={onRetry} size="sm" variant="stroke">
+          <RefreshCwIcon data-icon="inline-start" />
+          Putar ulang respons
+        </Button>
+      ) : null}
+    </Alert>
+  );
+};
+
 export const VoiceSessionScreen = () => {
   const navigate = useNavigate();
   const { reportId } = useIncident();
@@ -209,6 +302,7 @@ export const VoiceSessionScreen = () => {
   const [phase, setPhase] = useState<VoicePhase>("idle");
   const [seconds, setSeconds] = useState(0);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [audioWarmupNote, setAudioWarmupNote] = useState<string | null>(null);
   const [playbackAudio, setPlaybackAudio] = useState<HTMLAudioElement | null>(
     null
   );
@@ -246,6 +340,26 @@ export const VoiceSessionScreen = () => {
       }
     }, []);
 
+  const getPlaybackAudio = useCallback((): HTMLAudioElement => {
+    let audio = currentAudio.current;
+    if (!audio) {
+      audio = new Audio();
+      audio.setAttribute("playsinline", "");
+      audio.preload = "auto";
+      audio.volume = 1;
+      currentAudio.current = audio;
+    }
+    return audio;
+  }, []);
+
+  const unlockPlaybackAudio = useCallback(async (): Promise<void> => {
+    const audio = getPlaybackAudio();
+    audio.src = SILENT_AUDIO_DATA_URI;
+    await audio.play();
+    audio.pause();
+    audio.currentTime = 0;
+  }, [getPlaybackAudio]);
+
   const speakAssistant = useCallback(
     async (text: string): Promise<void> => {
       lastAssistantText.current = text;
@@ -255,19 +369,20 @@ export const VoiceSessionScreen = () => {
       if (!(speech.available && speech.audioBase64)) {
         throw new Error(speech.message ?? "Suara AI tidak tersedia.");
       }
-      currentAudio.current?.pause();
-      const audio = new Audio(
-        `data:${speech.mimeType};base64,${speech.audioBase64}`
-      );
-      audio.volume = 1;
-      playbackGraphCleanup.current?.();
-      const audioContext = await ensurePlaybackAudioContext();
-      const disconnectAudioGraph = tryConnectAmplifiedPlayback(
-        audioContext,
-        audio
-      );
-      playbackGraphCleanup.current = disconnectAudioGraph;
-      currentAudio.current = audio;
+      const audio = getPlaybackAudio();
+      audio.pause();
+      audio.src = `data:${speech.mimeType};base64,${speech.audioBase64}`;
+      audio.load();
+      if (!playbackGraphCleanup.current) {
+        const audioContext = await withTimeout(
+          ensurePlaybackAudioContext(),
+          "AudioContext.resume()"
+        ).catch(() => null);
+        playbackGraphCleanup.current = tryConnectAmplifiedPlayback(
+          audioContext,
+          audio
+        );
+      }
       setPlaybackAudio(audio);
       setAssistantEnvelope(null);
       const prepareEnvelope = async (): Promise<void> => {
@@ -286,19 +401,14 @@ export const VoiceSessionScreen = () => {
         await playAudio(audio);
       } finally {
         await envelopeTask;
-        disconnectAudioGraph?.();
-        if (playbackGraphCleanup.current === disconnectAudioGraph) {
-          playbackGraphCleanup.current = null;
-        }
         if (currentAudio.current === audio) {
-          currentAudio.current = null;
           setPlaybackAudio(null);
           setAssistantEnvelope(null);
         }
       }
       setPhase("listening");
     },
-    [ensurePlaybackAudioContext, synthesizeSpeech]
+    [ensurePlaybackAudioContext, getPlaybackAudio, synthesizeSpeech]
   );
 
   const appendTranscript = useCallback(
@@ -357,11 +467,26 @@ export const VoiceSessionScreen = () => {
 
   useEffect(
     () => () => {
-      currentAudio.current?.pause();
+      const audio = currentAudio.current;
+      audio?.pause();
+      audio?.removeAttribute("src");
+      audio?.load();
       playbackGraphCleanup.current?.();
       playbackAudioContext.current?.close().catch(() => undefined);
     },
     []
+  );
+
+  /**
+   * Harus dipanggil sinkron dari handler gesture agar iOS tetap mengizinkan audio.
+   * Kegagalannya tidak fatal: sesi darurat tetap lanjut walau pemanasan audio gagal.
+   */
+  const warmUpAudio = useCallback(
+    (): Promise<void> =>
+      runAudioWarmUp(ensurePlaybackAudioContext(), unlockPlaybackAudio()).then(
+        setAudioWarmupNote
+      ),
+    [ensurePlaybackAudioContext, unlockPlaybackAudio]
   );
 
   const handleStart = async (): Promise<void> => {
@@ -373,10 +498,11 @@ export const VoiceSessionScreen = () => {
       setPhase("error");
       return;
     }
-    await ensurePlaybackAudioContext();
+    const warmUpTask = warmUpAudio();
     setHasStarted(true);
     setPhase("connecting");
     try {
+      await warmUpTask;
       await speakAssistant(initialMessage.content);
     } catch (error) {
       setVoiceError(
@@ -392,8 +518,9 @@ export const VoiceSessionScreen = () => {
       setPhase("listening");
       return;
     }
+    const warmUpTask = warmUpAudio();
     try {
-      await ensurePlaybackAudioContext();
+      await warmUpTask;
       await speakAssistant(text);
     } catch (error) {
       setVoiceError(
@@ -443,6 +570,11 @@ export const VoiceSessionScreen = () => {
   const isListening = displayedPhase === "listening";
   const isSpeaking = displayedPhase === "speaking";
   const isWaveformActive = hasStarted && displayedPhase !== "error";
+
+  const isStalled = useStalledAfter(
+    displayedPhase === "connecting",
+    AUDIO_WARMUP_TIMEOUT_MS
+  );
 
   if (!reportId) {
     return (
@@ -514,6 +646,23 @@ export const VoiceSessionScreen = () => {
         </Button>
       )}
 
+      {isStalled ? (
+        <Alert>
+          <AlertTitle>Audio lama merespons</AlertTitle>
+          <AlertDescription>
+            <AudioDiagnostics
+              audioContextState={playbackAudioContext.current?.state ?? null}
+              audioSessionStatus={audioSession.status}
+              lastError={
+                voiceError ?? audioSession.error ?? transcription.error ?? null
+              }
+              transcriptionStatus={transcription.status}
+              warmupNote={audioWarmupNote}
+            />
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       {audioSession.error ? (
         <Alert>
           <AlertTitle>Recording pusat terbatas</AlertTitle>
@@ -532,18 +681,11 @@ export const VoiceSessionScreen = () => {
         </Alert>
       ) : null}
 
-      {voiceError ? (
-        <Alert variant="destructive">
-          <AlertTitle>Respons suara tidak tersedia</AlertTitle>
-          <AlertDescription>{voiceError}</AlertDescription>
-          {lastAssistantText.current ? (
-            <Button onClick={handleRetryVoice} size="sm" variant="stroke">
-              <RefreshCwIcon data-icon="inline-start" />
-              Putar ulang respons
-            </Button>
-          ) : null}
-        </Alert>
-      ) : null}
+      <VoiceResponseErrorAlert
+        canRetry={Boolean(lastAssistantText.current)}
+        error={voiceError}
+        onRetry={handleRetryVoice}
+      />
 
       {hasStarted ? (
         <Button

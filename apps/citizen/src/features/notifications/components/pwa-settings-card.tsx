@@ -72,6 +72,14 @@ export const PwaSettingsCard = () => {
             </AlertDescription>
           </Alert>
         ) : null}
+        {push.status === "denied" ? (
+          <Alert variant="destructive">
+            <AlertDescription>
+              Izin notifikasi diblokir. Buka pengaturan aplikasi atau situs
+              SIAGA di perangkat, lalu ubah izin Notifikasi menjadi Izinkan.
+            </AlertDescription>
+          </Alert>
+        ) : null}
       </CardContent>
       <CardFooter className="flex flex-wrap gap-2">
         {install.canInstall ? (
@@ -80,7 +88,7 @@ export const PwaSettingsCard = () => {
             Pasang SIAGA
           </Button>
         ) : null}
-        {push.status === "unsupported" ? null : (
+        {push.status === "unsupported" || push.status === "denied" ? null : (
           <Button
             disabled={push.isPending || push.status === "checking"}
             onClick={handlePushToggle}

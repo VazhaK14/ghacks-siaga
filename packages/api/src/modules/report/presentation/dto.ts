@@ -371,6 +371,15 @@ export const callSessionIdInputSchema = z.object({
 export const startOperatorCallOutputSchema = z.object({
   call: operatorCallStateSchema,
   connection: liveKitConnectionSchema,
+  notification: z.object({
+    message: z.string().nullable(),
+    status: z.enum(["DELIVERED", "FAILED", "UNAVAILABLE"]),
+  }),
+});
+
+export const acceptOperatorCallOutputSchema = z.object({
+  call: operatorCallStateSchema,
+  connection: liveKitConnectionSchema,
 });
 
 export const endOperatorCallInputSchema = callSessionIdInputSchema.extend({

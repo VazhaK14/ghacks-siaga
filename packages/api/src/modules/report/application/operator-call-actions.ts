@@ -1,5 +1,6 @@
 import type {
   CallTranscriptSegment,
+  IncomingCallNotification,
   IncomingCallNotifier,
   OperatorCallConnection,
   OperatorCallRepository,
@@ -29,6 +30,7 @@ export class StartOperatorCall {
   ): Promise<{
     call: OperatorCallState;
     connection: OperatorCallConnection;
+    notification: IncomingCallNotification;
   }> {
     const startedCall = await this.repository.start(reportId, operatorId);
     const connection = await this.tokenGateway.createConnection({
@@ -42,16 +44,31 @@ export class StartOperatorCall {
         startedCall.state.callSessionId,
         operatorId
       );
-      return { call: endedCall, connection };
+      return {
+        call: endedCall,
+        connection,
+        notification: {
+          message:
+            "Notifikasi tidak dikirim karena layanan panggilan belum tersedia.",
+          status: "FAILED",
+        },
+      };
     }
-    await this.notifier
-      .notify({
+    let notification: IncomingCallNotification;
+    try {
+      notification = await this.notifier.notify({
         callSessionId: startedCall.state.callSessionId,
         reportId,
         reportTitle: null,
-      })
-      .catch(() => undefined);
-    return { call: startedCall.state, connection };
+      });
+    } catch {
+      notification = {
+        message:
+          "Notifikasi panggilan tidak dapat dikirim. Pelapor mungkin tidak melihat panggilan ini.",
+        status: "FAILED",
+      };
+    }
+    return { call: startedCall.state, connection, notification };
   }
 }
 

@@ -4,6 +4,7 @@ import type { PropsWithChildren } from "react";
 import { NavLink, type NavLinkRenderProps, useLocation } from "react-router";
 
 import { useIncident } from "@/features/emergency/context";
+import { PushNotificationPrompt } from "@/features/notifications/components/push-notification-prompt";
 
 const NAVIGATION_HIDDEN_PATHS = new Set([
   "/complete-registration",
@@ -51,6 +52,7 @@ export const AppShell = ({ children }: PropsWithChildren) => {
   return (
     <div className="min-h-dvh">
       {children}
+      {location.pathname === "/history" ? <PushNotificationPrompt /> : null}
       <nav
         aria-label="Navigasi utama"
         className="citizen-glass-nav fixed inset-x-4 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] mx-auto grid max-w-md grid-cols-[1fr_5rem_1fr] items-center px-2 py-2"

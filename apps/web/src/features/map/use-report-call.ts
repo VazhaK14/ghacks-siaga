@@ -239,6 +239,7 @@ export const useReportCall = (selectedReportId: string | null) => {
         localTrackRef.current = localTrack;
         setLocalStream(microphone);
         setCallSessionId(started.call.callSessionId);
+        setError(started.notification.message);
         setPhase("ringing");
       } catch (caughtError) {
         room?.disconnect();

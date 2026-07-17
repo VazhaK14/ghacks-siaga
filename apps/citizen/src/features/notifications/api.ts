@@ -9,7 +9,7 @@ export const usePushPublicKeyQuery = () =>
   });
 
 export const useSavePushSubscriptionMutation = () =>
-  useMutation(trpc.push.save.mutationOptions());
+  useMutation({ ...trpc.push.save.mutationOptions(), retry: 2 });
 
 export const useRemovePushSubscriptionMutation = () =>
   useMutation(trpc.push.remove.mutationOptions());

@@ -1,5 +1,8 @@
 import { useMutation } from "@tanstack/react-query";
 
+import { useRemovePushSubscriptionMutation } from "@/features/notifications/api";
+import { supportsPushNotifications } from "@/features/notifications/push-subscription";
+import { registerCitizenServiceWorker } from "@/features/notifications/service-worker-registration";
 import { authClient } from "@/lib/auth-client";
 
 import type { SignInInput, SignUpInput } from "./types";
@@ -34,12 +37,28 @@ export const useSignUpMutation = () =>
     },
   });
 
-export const useSignOutMutation = () =>
-  useMutation({
+export const useSignOutMutation = () => {
+  const { mutateAsync: removePushSubscription } =
+    useRemovePushSubscriptionMutation();
+
+  return useMutation({
     mutationFn: async () => {
+      if (supportsPushNotifications()) {
+        try {
+          const registration = await registerCitizenServiceWorker();
+          const subscription =
+            await registration?.pushManager.getSubscription();
+          if (subscription) {
+            await removePushSubscription({ endpoint: subscription.endpoint });
+          }
+        } catch {
+          // Logout must remain available when push cleanup cannot reach the API.
+        }
+      }
       const result = await authClient.signOut();
       if (result.error) {
         throw new Error(result.error.message ?? "Gagal keluar dari akun.");
       }
     },
   });
+};

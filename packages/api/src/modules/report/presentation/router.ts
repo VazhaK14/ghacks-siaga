@@ -63,6 +63,7 @@ import { PrismaReportRepository } from "../infrastructure/prisma-report-reposito
 import { PrismaReporterReportRepository } from "../infrastructure/prisma-reporter-report-repository";
 import { WebPushIncomingCallNotifier } from "../infrastructure/web-push-incoming-call-notifier";
 import {
+  acceptOperatorCallOutputSchema,
   activeReportPageSchema,
   appendAcousticSignalInputSchema,
   appendReporterTextInputSchema,
@@ -219,7 +220,7 @@ const toReportImageTrpcError = (error: unknown): never => {
 export const reportRouter = router({
   acceptIncomingCall: completedReporterProcedure
     .input(callSessionIdInputSchema)
-    .output(startOperatorCallOutputSchema)
+    .output(acceptOperatorCallOutputSchema)
     .mutation(async ({ ctx, input }) => {
       try {
         return await acceptIncomingOperatorCall.execute(
