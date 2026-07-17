@@ -25,5 +25,10 @@ export function getServerUrl(url: string) {
     return `${origin}${normalized}`;
   }
 
+  const railwayDomain = processEnv?.RAILWAY_PUBLIC_DOMAIN;
+  if (railwayDomain) {
+    return `https://${railwayDomain}${normalized}`;
+  }
+
   return `http://localhost:3000${normalized}`;
 }

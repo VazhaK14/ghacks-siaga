@@ -5,6 +5,7 @@ import {
   useRemovePushSubscriptionMutation,
   useSavePushSubscriptionMutation,
 } from "./api";
+import { registerCitizenServiceWorker } from "./service-worker-registration";
 import type { NotificationSetupStatus } from "./types";
 
 const urlBase64ToUint8Array = (value: string): Uint8Array<ArrayBuffer> => {
@@ -35,8 +36,8 @@ export const usePushNotifications = () => {
       return;
     }
     let cancelled = false;
-    navigator.serviceWorker.ready
-      .then((registration) => registration.pushManager.getSubscription())
+    registerCitizenServiceWorker()
+      .then((registration) => registration?.pushManager.getSubscription())
       .then((subscription) => {
         if (!cancelled) {
           setStatus(subscription ? "enabled" : "disabled");
@@ -65,7 +66,10 @@ export const usePushNotifications = () => {
     if (permission !== "granted") {
       throw new Error("Izin notifikasi belum diberikan.");
     }
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await registerCitizenServiceWorker();
+    if (!registration) {
+      throw new Error("Service worker notifikasi tidak tersedia.");
+    }
     const subscription = await registration.pushManager.subscribe({
       applicationServerKey: urlBase64ToUint8Array(publicKey),
       userVisibleOnly: true,
@@ -93,7 +97,11 @@ export const usePushNotifications = () => {
     if (!supportsPush()) {
       return;
     }
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await registerCitizenServiceWorker();
+    if (!registration) {
+      setStatus("disabled");
+      return;
+    }
     const subscription = await registration.pushManager.getSubscription();
     if (subscription) {
       await removeSubscription.mutateAsync({ endpoint: subscription.endpoint });

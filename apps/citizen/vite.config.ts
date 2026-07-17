@@ -15,7 +15,7 @@ export default defineConfig({
       filename: "service-worker.ts",
       injectManifest: {
         globDirectory: "build/client",
-        globPatterns: ["**/*.{css,html,ico,js,svg,woff2}"],
+        globPatterns: ["**/*.{css,html,ico,js,png,svg,woff2}"],
       },
       manifest: {
         background_color: "#0d0708",
@@ -25,15 +25,15 @@ export default defineConfig({
         icons: [
           {
             purpose: "any",
-            sizes: "any",
-            src: "icons/siaga.svg",
-            type: "image/svg+xml",
+            sizes: "623x623",
+            src: "logo.png",
+            type: "image/png",
           },
           {
             purpose: "maskable",
-            sizes: "any",
-            src: "icons/siaga-maskable.svg",
-            type: "image/svg+xml",
+            sizes: "623x623",
+            src: "logo.png",
+            type: "image/png",
           },
         ],
         lang: "id-ID",

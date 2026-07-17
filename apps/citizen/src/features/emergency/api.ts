@@ -92,13 +92,6 @@ export const useRequestCancellationMutation = () => {
   );
 };
 
-export const useAcknowledgeReportMutation = () => {
-  const invalidate = useInvalidateReporterReports();
-  return useMutation(
-    trpc.report.acknowledge.mutationOptions({ onSuccess: invalidate })
-  );
-};
-
 export const useIncomingOperatorCallQuery = (callSessionId: string | null) =>
   useQuery(
     trpc.report.getIncomingCall.queryOptions(

@@ -1,4 +1,7 @@
-import { ACTIVE_SESSION_STATUSES } from "./derive-phase";
+import {
+  ACTIVE_SESSION_STATUSES,
+  TERMINAL_REPORT_STATUSES,
+} from "./derive-phase";
 import type { ReporterReportListItem, ReportMode } from "./types";
 
 const REPORT_MODE_BY_INTERACTION_MODE: Record<string, ReportMode> = {
@@ -14,6 +17,9 @@ const SESSION_ROUTE_BY_MODE: Record<ReportMode, string> = {
 };
 
 export const getResumeRoute = (report: ReporterReportListItem): string => {
+  if (TERMINAL_REPORT_STATUSES.has(report.status)) {
+    return "/complete";
+  }
   if (!ACTIVE_SESSION_STATUSES.has(report.status)) {
     return report.status === "HELP_ARRIVED" ? "/arrival" : "/dispatch";
   }

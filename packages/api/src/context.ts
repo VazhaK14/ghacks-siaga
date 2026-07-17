@@ -1,11 +1,12 @@
-import { auth } from "@siaga-app/auth";
+import type { operatorAuth } from "@siaga-app/auth";
 import type { Context as HonoContext } from "hono";
 
 export interface CreateContextOptions {
+  auth: typeof operatorAuth;
   context: HonoContext;
 }
 
-export async function createContext({ context }: CreateContextOptions) {
+export async function createContext({ auth, context }: CreateContextOptions) {
   const session = await auth.api.getSession({
     headers: context.req.raw.headers,
   });

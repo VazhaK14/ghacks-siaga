@@ -1,7 +1,10 @@
 import path from "node:path";
 
 import dotenv from "dotenv";
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
+
+const GENERATE_ONLY_DATABASE_URL =
+  "postgresql://unused:unused@localhost:5432/unused";
 
 dotenv.config({
   path: "../../apps/server/.env",
@@ -9,7 +12,7 @@ dotenv.config({
 
 export default defineConfig({
   datasource: {
-    url: env("DATABASE_URL"),
+    url: process.env.DATABASE_URL ?? GENERATE_ONLY_DATABASE_URL,
   },
   migrations: {
     path: path.join("prisma", "migrations"),

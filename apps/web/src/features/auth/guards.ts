@@ -9,7 +9,7 @@ async function fetchSession(
   request: Request
 ): Promise<SessionCheckResult | null> {
   const base = getServerUrl(env.VITE_SERVER_URL);
-  const res = await fetch(new URL("/api/auth/get-session", base), {
+  const res = await fetch(`${base}/api/auth/operator/get-session`, {
     headers: { cookie: request.headers.get("cookie") ?? "" },
   });
   if (!res.ok) {

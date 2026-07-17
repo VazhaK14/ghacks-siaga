@@ -1,7 +1,7 @@
 import { Toaster } from "@siaga-app/ui/components/sonner";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
-
+import { AgaisMascot } from "@/components/agais-mascot";
 import { AppShell } from "@/components/app-shell";
 
 import "./index.css";
@@ -32,8 +32,13 @@ export const meta: Route.MetaFunction = () => [
 ];
 
 export const links: Route.LinksFunction = () => [
-  { href: "icons/siaga.svg", rel: "icon", type: "image/svg+xml" },
-  { href: "icons/siaga.svg", rel: "apple-touch-icon" },
+  { href: "logo.png", rel: "icon", type: "image/png" },
+  { href: "logo.png", rel: "apple-touch-icon" },
+  {
+    href: `${import.meta.env.BASE_URL}manifest.webmanifest`,
+    rel: "manifest",
+    type: "application/manifest+json",
+  },
   { href: "https://fonts.googleapis.com", rel: "preconnect" },
   {
     crossOrigin: "anonymous",
@@ -102,7 +107,8 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   }
   return (
     <main className="flex min-h-dvh items-center justify-center p-6">
-      <section className="citizen-glass-surface w-full max-w-md p-6">
+      <section className="citizen-glass-surface flex w-full max-w-md flex-col items-center p-6 text-center">
+        <AgaisMascot className="mb-3 size-32" mood="sad" />
         <h1 className="font-bold text-xl">{message}</h1>
         <p className="mt-2 text-muted-foreground">{details}</p>
         {stack ? (

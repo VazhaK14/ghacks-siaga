@@ -17,11 +17,7 @@ const vercelOrigin = getVercelOrigin();
 
 const runtimeEnv = {
   ...process.env,
-  // Public auth base: /api/auth bypasses the rewrite's path strip, so the
-  // same URL works for incoming matching and generated callbacks
-  BETTER_AUTH_URL:
-    process.env.BETTER_AUTH_URL ??
-    (vercelOrigin ? `${vercelOrigin}/api/auth` : undefined),
+  BETTER_AUTH_URL: process.env.BETTER_AUTH_URL ?? vercelOrigin,
   CORS_ORIGIN: process.env.CORS_ORIGIN ?? vercelOrigin,
 };
 
@@ -29,6 +25,8 @@ export const env = createEnv({
   emptyStringAsUndefined: true,
   runtimeEnv,
   server: {
+    BETTER_AUTH_CITIZEN_SECRET: z.string().min(32).optional(),
+    BETTER_AUTH_OPERATOR_SECRET: z.string().min(32).optional(),
     BETTER_AUTH_SECRET: z.string().min(32),
     BETTER_AUTH_URL: z.url(),
     CLOUDINARY_API_KEY: z.string().min(1).optional(),

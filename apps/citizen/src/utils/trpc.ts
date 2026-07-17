@@ -34,7 +34,7 @@ export const trpcClient = createTRPCClient<AppRouter>({
           credentials: "include",
         });
       },
-      url: `${getServerUrl(env.VITE_SERVER_URL)}/trpc`,
+      url: `${getServerUrl(env.VITE_SERVER_URL)}/trpc/citizen`,
     }),
   ],
 });

@@ -20,7 +20,7 @@ const operatorRole = ac.newRole({
 });
 
 export const authClient = createAuthClient({
-  baseURL: new URL("/api/auth", getServerUrl(env.VITE_SERVER_URL)).toString(),
+  baseURL: `${getServerUrl(env.VITE_SERVER_URL)}/api/auth/citizen`,
   plugins: [
     adminClient({
       ac,

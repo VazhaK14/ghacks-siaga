@@ -8,13 +8,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@siaga-app/ui/components/card";
-import { MessageCircleIcon, ShieldCheckIcon } from "lucide-react";
+import { MessageCircleIcon } from "lucide-react";
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
 
 import { MobilePage } from "@/components/mobile-page";
 
-import { useAcknowledgeReportMutation } from "../api";
 import { useIncident } from "../context";
 import { useReportPhaseNavigation } from "../use-report-phase-navigation";
 import { DispatchTimeline } from "./dispatch-timeline";
@@ -23,12 +22,10 @@ export const ArrivalScreen = () => {
   const navigate = useNavigate();
   const { reportId } = useIncident();
   const { phase, reportQuery } = useReportPhaseNavigation(reportId);
-  const acknowledgement = useAcknowledgeReportMutation();
   const report = reportQuery.data;
   const dispatch = report?.latestDispatch;
   const agencyName = dispatch?.agencyName ?? "Tim bantuan";
   const unitCode = dispatch?.unitCode ?? "unit lapangan";
-  const isWithResponder = report?.acknowledgements.includes("WITH_RESPONDER");
 
   useEffect(() => {
     if (phase === "completed") {
@@ -36,15 +33,6 @@ export const ArrivalScreen = () => {
     }
   }, [navigate, phase]);
 
-  const handleComplete = async () => {
-    if (!reportId) {
-      return;
-    }
-    await acknowledgement.mutateAsync({
-      reportId,
-      type: "WITH_RESPONDER",
-    });
-  };
   const handleHistory = () => navigate("/history", { replace: true });
   const handleOpenChat = () => navigate("/chat");
 
@@ -83,18 +71,10 @@ export const ArrivalScreen = () => {
         </CardFooter>
       </Card>
 
-      <div className="flex gap-2">
-        <Button className="flex-1" onClick={handleOpenChat} variant="ghost">
+      <div>
+        <Button className="w-full" onClick={handleOpenChat} variant="ghost">
           <MessageCircleIcon data-icon="inline-start" />
           Chat
-        </Button>
-        <Button
-          className="flex-1"
-          disabled={acknowledgement.isPending || isWithResponder}
-          onClick={handleComplete}
-        >
-          <ShieldCheckIcon data-icon="inline-start" />
-          {isWithResponder ? "Sudah dikirim" : "Bersama petugas"}
         </Button>
       </div>
     </MobilePage>

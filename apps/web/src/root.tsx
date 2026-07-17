@@ -17,6 +17,13 @@ import { ThemeProvider } from "./components/theme-provider";
 import { queryClient } from "./utils/trpc";
 
 export const links: Route.LinksFunction = () => [
+  {
+    href: "logo.png?v=2",
+    rel: "icon",
+    sizes: "623x623",
+    type: "image/png",
+  },
+  { href: "logo.png?v=2", rel: "apple-touch-icon", sizes: "623x623" },
   { href: "https://fonts.googleapis.com", rel: "preconnect" },
   {
     crossOrigin: "anonymous",

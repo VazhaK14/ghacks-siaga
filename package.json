@@ -28,7 +28,7 @@
   "type": "module",
   "scripts": {
     "dev": "turbo run dev",
-    "build": "turbo run build",
+    "build": "bun run scripts/railway-build.ts",
     "check-types": "turbo run check-types",
     "dev:citizen": "turbo run dev -F citizen",
     "dev:web": "turbo run dev -F web",
@@ -37,6 +37,7 @@
     "db:studio": "turbo run db:studio -F @siaga-app/db",
     "db:generate": "turbo run db:generate -F @siaga-app/db",
     "db:migrate": "turbo run db:migrate -F @siaga-app/db",
+    "db:deploy": "turbo run db:deploy -F @siaga-app/db",
     "db:seed": "turbo run db:seed -F @siaga-app/db",
     "deploy:setup": "vercel link",
     "dev:vercel": "vercel dev -L",
@@ -47,6 +48,7 @@
     "deploy:check": "vercel deploy --dry",
     "check": "ultracite check",
     "fix": "ultracite fix",
+    "start": "bun run scripts/railway-start.ts",
     "prepare": "husky"
   },
   "dependencies": {

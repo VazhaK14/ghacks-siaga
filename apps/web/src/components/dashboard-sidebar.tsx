@@ -25,7 +25,6 @@ import {
   MapPinnedIcon,
   PhoneIncomingIcon,
   SettingsIcon,
-  ShieldCheckIcon,
   SirenIcon,
   UsersIcon,
 } from "lucide-react";
@@ -84,9 +83,14 @@ export function DashboardSidebar({
     >
       <SidebarHeader className="border-b px-4 py-4">
         <span className="flex items-center gap-3">
-          <span className="flex size-9 items-center justify-center rounded-md bg-primary-10 text-primary-300">
-            <ShieldCheckIcon aria-hidden />
-          </span>
+          <img
+            alt=""
+            aria-hidden="true"
+            className="size-10 rounded-xl object-contain"
+            height={623}
+            src="logo.png"
+            width={623}
+          />
           <span>
             <span className="block font-extrabold text-base text-foreground">
               SIAGA

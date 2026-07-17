@@ -26,7 +26,6 @@ import {
   StartOperatorCall,
 } from "../application/operator-call-actions";
 import {
-  AcknowledgeReport,
   ActivateReporterSession,
   AppendReporterAcousticSignal,
   AppendReporterText,
@@ -55,7 +54,6 @@ import { PrismaReportRepository } from "../infrastructure/prisma-report-reposito
 import { PrismaReporterReportRepository } from "../infrastructure/prisma-reporter-report-repository";
 import { WebPushIncomingCallNotifier } from "../infrastructure/web-push-incoming-call-notifier";
 import {
-  acknowledgeReporterInputSchema,
   activeReportPageSchema,
   appendAcousticSignalInputSchema,
   appendReporterTextInputSchema,
@@ -112,7 +110,6 @@ const endReporterSession = new EndReporterSession(reporterReportRepository);
 const requestReporterCancellation = new RequestReporterCancellation(
   reporterReportRepository
 );
-const acknowledgeReport = new AcknowledgeReport(reporterReportRepository);
 const activateReporterSession = new ActivateReporterSession(
   reporterReportRepository
 );
@@ -192,22 +189,6 @@ export const reportRouter = router({
       } catch (error) {
         return toOperatorCallTrpcError(error);
       }
-    }),
-  acknowledge: completedReporterProcedure
-    .input(acknowledgeReporterInputSchema)
-    .output(reporterReportDetailSchema)
-    .mutation(async ({ ctx, input }) => {
-      const report = await acknowledgeReport.execute(
-        input.reportId,
-        ctx.session.user.id,
-        input.type
-      );
-      await publishReportLiveEvent({
-        reportId: report.id,
-        type: "report.updated",
-        updatedAt: report.updatedAt,
-      });
-      return report;
     }),
   activateSession: completedReporterProcedure
     .input(reporterReportIdInputSchema)

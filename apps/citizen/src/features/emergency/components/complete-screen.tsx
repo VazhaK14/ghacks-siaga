@@ -8,9 +8,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@siaga-app/ui/components/card";
-import { CircleCheckBigIcon, Clock3Icon } from "lucide-react";
+import { Clock3Icon } from "lucide-react";
 import { useNavigate } from "react-router";
-
+import { AgaisMascot } from "@/components/agais-mascot";
 import { MobilePage } from "@/components/mobile-page";
 
 import { useReporterReportQuery } from "../api";
@@ -34,9 +34,7 @@ export const CompleteScreen = () => {
       className="items-center gap-6 text-center"
       title="Laporan selesai"
     >
-      <div className="flex size-32 items-center justify-center rounded-full bg-success/15 text-success">
-        <CircleCheckBigIcon aria-hidden="true" className="size-16" />
-      </div>
+      <AgaisMascot className="size-40" mood="happy" />
       <div className="flex flex-col gap-2">
         <h1 className="text-h3">Kamu sudah aman</h1>
         <p className="text-muted-foreground text-sm">

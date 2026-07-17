@@ -3,7 +3,7 @@ import { createContext } from "@siaga-app/api/context";
 import { subscribeToOfflineCallLiveEvents } from "@siaga-app/api/modules/offline-call/live-events";
 import { subscribeToReportLiveEvents } from "@siaga-app/api/modules/report/presentation/live-events";
 import { appRouter } from "@siaga-app/api/routers/index";
-import { auth } from "@siaga-app/auth";
+import { citizenAuth, operatorAuth } from "@siaga-app/auth";
 import { env } from "@siaga-app/env/server";
 import { initLogger } from "evlog";
 import {
@@ -21,7 +21,7 @@ initLogger({
   env: { service: "siaga-app-server" },
 });
 
-const identifyUser = createAuthMiddleware(auth as BetterAuthInstance, {
+const identifyUser = createAuthMiddleware(operatorAuth as BetterAuthInstance, {
   exclude: ["/api/auth/**"],
   maskEmail: true,
 });
@@ -44,18 +44,33 @@ app.use(
   })
 );
 
-app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
+app.on(["POST", "GET"], "/api/auth/operator/*", (c) =>
+  operatorAuth.handler(c.req.raw)
+);
+app.on(["POST", "GET"], "/api/auth/citizen/*", (c) =>
+  citizenAuth.handler(c.req.raw)
+);
 
 app.use(
-  "/trpc/*",
+  "/trpc/operator/*",
   trpcServer({
-    createContext: (_opts, context) => createContext({ context }),
+    createContext: (_opts, context) =>
+      createContext({ auth: operatorAuth, context }),
+    router: appRouter,
+  })
+);
+
+app.use(
+  "/trpc/citizen/*",
+  trpcServer({
+    createContext: (_opts, context) =>
+      createContext({ auth: citizenAuth, context }),
     router: appRouter,
   })
 );
 
 app.get("/sse/reports/live", async (c) => {
-  const session = await auth.api.getSession({
+  const session = await operatorAuth.api.getSession({
     headers: c.req.raw.headers,
   });
   if (!session) {
@@ -124,7 +139,9 @@ app.get("/sse/reports/live", async (c) => {
 });
 
 app.get("/sse/offline-calls/live", async (c) => {
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  const session = await operatorAuth.api.getSession({
+    headers: c.req.raw.headers,
+  });
   if (!session) {
     return c.json({ message: "Authentication required" }, 401);
   }

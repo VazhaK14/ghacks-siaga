@@ -15,7 +15,7 @@ import {
   FieldLabel,
 } from "@siaga-app/ui/components/field";
 import { Input } from "@siaga-app/ui/components/input";
-import { PhoneCallIcon, SirenIcon } from "lucide-react";
+import { PhoneCallIcon } from "lucide-react";
 import type { FormEvent } from "react";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -106,9 +106,14 @@ export const AuthScreen = ({ mode }: AuthScreenProps) => {
       title={isSignUp ? "Daftar" : "Masuk"}
     >
       <div className="mb-6 flex items-center justify-center gap-3">
-        <div className="flex size-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
-          <SirenIcon aria-hidden="true" />
-        </div>
+        <img
+          alt=""
+          aria-hidden="true"
+          className="size-14 rounded-2xl object-contain"
+          height={623}
+          src="logo.png"
+          width={623}
+        />
         <div>
           <p className="text-h4 text-primary">SIAGA</p>
           <p className="text-muted-foreground text-xs">Bantuan darurat warga</p>

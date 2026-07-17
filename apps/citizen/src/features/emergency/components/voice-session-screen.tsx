@@ -151,6 +151,53 @@ const playAudio = (audio: HTMLAudioElement): Promise<void> =>
     audio.play().catch(reject);
   });
 
+const AI_PLAYBACK_GAIN = 1.8;
+
+const connectAmplifiedPlayback = (
+  audioContext: AudioContext,
+  audio: HTMLAudioElement
+): (() => void) => {
+  const source = audioContext.createMediaElementSource(audio);
+  const gain = audioContext.createGain();
+  const compressor = audioContext.createDynamicsCompressor();
+
+  gain.gain.value = AI_PLAYBACK_GAIN;
+  compressor.threshold.value = -8;
+  compressor.knee.value = 6;
+  compressor.ratio.value = 4;
+  compressor.attack.value = 0.003;
+  compressor.release.value = 0.18;
+
+  source.connect(gain);
+  gain.connect(compressor);
+  compressor.connect(audioContext.destination);
+
+  let isConnected = true;
+  return () => {
+    if (!isConnected) {
+      return;
+    }
+    isConnected = false;
+    source.disconnect();
+    gain.disconnect();
+    compressor.disconnect();
+  };
+};
+
+const tryConnectAmplifiedPlayback = (
+  audioContext: AudioContext | null,
+  audio: HTMLAudioElement
+): (() => void) | null => {
+  if (!audioContext) {
+    return null;
+  }
+  try {
+    return connectAmplifiedPlayback(audioContext, audio);
+  } catch {
+    return null;
+  }
+};
+
 export const VoiceSessionScreen = () => {
   const navigate = useNavigate();
   const { reportId } = useIncident();
@@ -169,6 +216,8 @@ export const VoiceSessionScreen = () => {
     null
   );
   const currentAudio = useRef<HTMLAudioElement | null>(null);
+  const playbackAudioContext = useRef<AudioContext | null>(null);
+  const playbackGraphCleanup = useRef<(() => void) | null>(null);
   const finalizedRef = useRef(false);
   const lastAssistantText = useRef<string | null>(null);
   const isFinalized = reportQuery.data?.intakeStatus === "FINALIZED";
@@ -179,6 +228,23 @@ export const VoiceSessionScreen = () => {
 
   const audioSession = useReportAudioSession(reportId, hasStarted);
   useLiveLocationReporting(reportId);
+
+  const ensurePlaybackAudioContext =
+    useCallback(async (): Promise<AudioContext | null> => {
+      try {
+        let audioContext = playbackAudioContext.current;
+        if (!audioContext || audioContext.state === "closed") {
+          audioContext = new AudioContext();
+          playbackAudioContext.current = audioContext;
+        }
+        if (audioContext.state === "suspended") {
+          await audioContext.resume();
+        }
+        return audioContext.state === "running" ? audioContext : null;
+      } catch {
+        return null;
+      }
+    }, []);
 
   const speakAssistant = useCallback(
     async (text: string): Promise<void> => {
@@ -193,6 +259,14 @@ export const VoiceSessionScreen = () => {
       const audio = new Audio(
         `data:${speech.mimeType};base64,${speech.audioBase64}`
       );
+      audio.volume = 1;
+      playbackGraphCleanup.current?.();
+      const audioContext = await ensurePlaybackAudioContext();
+      const disconnectAudioGraph = tryConnectAmplifiedPlayback(
+        audioContext,
+        audio
+      );
+      playbackGraphCleanup.current = disconnectAudioGraph;
       currentAudio.current = audio;
       setPlaybackAudio(audio);
       setAssistantEnvelope(null);
@@ -212,6 +286,10 @@ export const VoiceSessionScreen = () => {
         await playAudio(audio);
       } finally {
         await envelopeTask;
+        disconnectAudioGraph?.();
+        if (playbackGraphCleanup.current === disconnectAudioGraph) {
+          playbackGraphCleanup.current = null;
+        }
         if (currentAudio.current === audio) {
           currentAudio.current = null;
           setPlaybackAudio(null);
@@ -220,7 +298,7 @@ export const VoiceSessionScreen = () => {
       }
       setPhase("listening");
     },
-    [synthesizeSpeech]
+    [ensurePlaybackAudioContext, synthesizeSpeech]
   );
 
   const appendTranscript = useCallback(
@@ -280,6 +358,8 @@ export const VoiceSessionScreen = () => {
   useEffect(
     () => () => {
       currentAudio.current?.pause();
+      playbackGraphCleanup.current?.();
+      playbackAudioContext.current?.close().catch(() => undefined);
     },
     []
   );
@@ -293,6 +373,7 @@ export const VoiceSessionScreen = () => {
       setPhase("error");
       return;
     }
+    await ensurePlaybackAudioContext();
     setHasStarted(true);
     setPhase("connecting");
     try {
@@ -312,6 +393,7 @@ export const VoiceSessionScreen = () => {
       return;
     }
     try {
+      await ensurePlaybackAudioContext();
       await speakAssistant(text);
     } catch (error) {
       setVoiceError(
@@ -332,6 +414,8 @@ export const VoiceSessionScreen = () => {
       return;
     }
     currentAudio.current?.pause();
+    playbackGraphCleanup.current?.();
+    playbackGraphCleanup.current = null;
     setPlaybackAudio(null);
     setAssistantEnvelope(null);
     setPhase("ending");

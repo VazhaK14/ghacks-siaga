@@ -19,7 +19,7 @@ import { Skeleton } from "@siaga-app/ui/components/skeleton";
 import { ActivityIcon, MessageCircleIcon } from "lucide-react";
 import { useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router";
-
+import { AgaisMascot } from "@/components/agais-mascot";
 import { MobilePage } from "@/components/mobile-page";
 
 import { useReporterReportQuery, useReporterReportsQuery } from "../api";
@@ -87,6 +87,7 @@ export const StatusScreen = () => {
         className="items-center justify-center gap-3 text-center"
         title="Status laporan"
       >
+        <AgaisMascot className="mb-2 size-32" mood="sad" />
         <h1 className="text-h4">Status belum dapat dimuat</h1>
         <p className="text-muted-foreground text-sm">
           Periksa koneksi lalu buka halaman ini kembali.

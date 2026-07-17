@@ -21,22 +21,37 @@ const operatorRole = ac.newRole({
   user: ["create", "list", "set-role", "ban", "get", "update"],
 });
 
-export function createAuth() {
+interface CreateAuthOptions {
+  basePath: string;
+  cookiePrefix: string;
+  disableSignUp: boolean;
+  secret: string;
+}
+
+export function createAuth({
+  basePath,
+  cookiePrefix,
+  disableSignUp,
+  secret,
+}: CreateAuthOptions) {
   const prisma = createPrismaClient();
 
   return betterAuth({
     advanced: {
+      cookiePrefix,
       defaultCookieAttributes: {
         httpOnly: true,
-        sameSite: "none",
-        secure: true,
+        sameSite: env.NODE_ENV === "production" ? "none" : "lax",
+        secure: env.NODE_ENV === "production",
       },
     },
-    baseURL: env.BETTER_AUTH_URL,
+    basePath,
+    baseURL: new URL(env.BETTER_AUTH_URL).origin,
     database: prismaAdapter(prisma, {
       provider: "postgresql",
     }),
     emailAndPassword: {
+      disableSignUp,
       enabled: true,
     },
     plugins: [
@@ -47,10 +62,22 @@ export function createAuth() {
         roles: { OPERATOR: operatorRole, REPORTER: reporterRole },
       }),
     ],
-    secret: env.BETTER_AUTH_SECRET,
+    secret,
 
     trustedOrigins: [...env.CORS_ORIGIN],
   });
 }
 
-export const auth = createAuth();
+export const operatorAuth = createAuth({
+  basePath: "/api/auth/operator",
+  cookiePrefix: "siaga-operator",
+  disableSignUp: true,
+  secret: env.BETTER_AUTH_OPERATOR_SECRET ?? env.BETTER_AUTH_SECRET,
+});
+
+export const citizenAuth = createAuth({
+  basePath: "/api/auth/citizen",
+  cookiePrefix: "siaga-citizen",
+  disableSignUp: false,
+  secret: env.BETTER_AUTH_CITIZEN_SECRET ?? env.BETTER_AUTH_SECRET,
+});
